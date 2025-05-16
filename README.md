@@ -16,16 +16,14 @@ A powerful and flexible PHP utility for processing, filtering, and transforming 
 
 ## Installation
 
-```bash
-composer require peeks/array-data-processor
-```
+
 
 ## Basic Usage
 
 ```php
-use Peeks\Lib\ArrayDataProcessor;
+use ArrayDataProcessor;
 
-// Initialize with data
+//Initialise with data
 $processor = new ArrayDataProcessor($data);
 
 // Configure and process
