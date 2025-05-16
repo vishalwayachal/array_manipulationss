@@ -203,7 +203,7 @@ class ArrayDataProcessor
     public function __construct(array $data)
     {
         $this->data = $data;
-       
+
 
         // Log initialization with both PSR-3 and RV logger
         $logContext = [
@@ -211,8 +211,6 @@ class ArrayDataProcessor
             'memory' => memory_get_usage(true),
             'dataType' => gettype(reset($data)),
         ];
-
-     
     }
 
     /**
@@ -315,7 +313,7 @@ class ArrayDataProcessor
     public function setFieldAlias(string $originalField, string $alias)
     {
         $this->fieldAliases[$originalField] = $alias;
-    
+
         return $this;
     }
 
@@ -354,7 +352,7 @@ class ArrayDataProcessor
         if (!in_array($type, $validTypes)) {
             throw new \InvalidArgumentException("Unsupported type: {$type}");
         }
-        $this->typeMap[$field] = $type;       
+        $this->typeMap[$field] = $type;
         return $this;
     }
 
@@ -370,7 +368,7 @@ class ArrayDataProcessor
 
         try {
             // Log processing start
-        
+
 
             // Apply type casting first to ensure all values are properly cast
             $result = $this->applyTypeCasting($this->data);
@@ -379,13 +377,11 @@ class ArrayDataProcessor
             if (!empty($this->filters)) {
                 $filterStartTime = microtime(true);
                 $result = $this->applyFilters($result);
-              
             }
 
             if (!empty($this->sort)) {
                 $sortStartTime = microtime(true);
                 $result = $this->applySort($result);
-              
             }
 
             // Apply pagination
@@ -401,7 +397,7 @@ class ArrayDataProcessor
             // Format final output
             $output = $this->formatOutput($result);
 
-                     return $output;
+            return $output;
         } catch (\Exception $e) {
             throw $e;
         }
@@ -518,7 +514,7 @@ class ArrayDataProcessor
                     }
 
                     $results[] = true;
-                } catch (\Exception $e) {                   
+                } catch (\Exception $e) {
                     $results[] = false;
                 }
             }
@@ -648,7 +644,7 @@ class ArrayDataProcessor
                     throw new \InvalidArgumentException("Unsupported type: {$type}");
             }
         } catch (\Exception $e) {
-      
+
             throw $e;
         }
     }
@@ -685,6 +681,128 @@ class ArrayDataProcessor
             return $processed;
         }, $data);
     }
-
-    
 }
+
+
+$data = [
+    [
+        'stream_id' => '1001',
+        'user_id' => '5001',
+        'title' => 'Gaming Stream',
+        'viewer_count' => '1500',
+        'is_featured' => 'Y',
+        'is_adult' => 'N',
+        'rating' => '4.50',
+        'amount' => '2500', // Amount in cents
+        'created_at' => '2025-05-16 08:00:00',
+        'status' => '1',
+        'tags' => 'gaming,live,esports',
+        'metadata' => json_encode([
+            'device' => 'mobile',
+            'quality' => 'HD',
+            'game' => 'Fortnite'
+        ])
+    ],
+    [
+        'stream_id' => '1002',
+        'user_id' => '5002',
+        'title' => 'Cooking Show',
+        'viewer_count' => '800',
+        'is_featured' => 'N',
+        'is_adult' => 'N',
+        'rating' => '4.75',
+        'amount' => '1500',
+        'created_at' => '2025-05-16 09:30:00',
+        'status' => '1',
+        'tags' => 'cooking,recipe,food',
+        'metadata' => json_encode([
+            'device' => 'desktop',
+            'quality' => '4K',
+            'cuisine' => 'Italian'
+        ])
+    ]
+];
+$processor = new ArrayDataProcessor($data);
+// Set up type casting for different fields
+$processor
+    // Basic type casting
+    ->setFieldType('stream_id', 'int')
+    ->setFieldType('user_id', 'int')
+    ->setFieldType('viewer_count', 'int')
+
+    // Use YesNo utility for boolean fields
+    // Convert amount from cents to dollars with formatting
+    ->setFieldType('amount', function ($value) {
+        return number_format($value / 100, 2, '.', '');
+    })
+    // Convert rating to float and ensure 2 decimal places
+    ->setFieldType('rating', function ($value) {
+        return number_format((float)$value, 2, '.', '');
+    })
+    // Parse date strings into DateTime objects
+    ->setFieldType('created_at', function ($value) {
+        return new \DateTime($value);
+    })
+    // Convert status codes to meaningful strings
+    ->setFieldType('status', function ($value) {
+        $statusMap = [
+            '0' => 'inactive',
+            '1' => 'active',
+            '2' => 'suspended',
+            '3' => 'pending'
+        ];
+        return $statusMap[$value] ?? 'unknown';
+    }) // Convert comma-separated tags to arrays
+    ->setFieldType('tags', function ($value) {
+        return array_map('trim', explode(',', $value));
+    })
+    // Parse JSON metadata and add additional processing
+    ->setFieldType('metadata', function ($value) {
+        $metadata = json_decode($value, true);
+        // Add processed timestamp
+        $metadata['processed_at'] = date('Y-m-d H:i:s');
+        return $metadata;
+    });
+// Set up filters
+$processor->setFilters([
+    'viewer_count' => [
+        'type' => 'greaterThan',
+        'value' => 1000
+    ],
+    'is_featured' => [
+        'type' => 'equals',
+        'value' => 'Y'
+    ],
+    'is_adult' => [
+        'type' => 'equals',
+        'value' => 'N'
+    ],
+    'rating' => [
+        'type' => 'greaterThan',
+        'value' => '4.00'
+    ],
+    'status' => [
+        'type' => 'equals',
+        'value' => 'active'
+    ]
+]);
+// Set field aliases for cleaner output
+$processor->setFieldAlias('viewer_count', 'viewers')
+    ->setFieldAlias('is_featured', 'featured')
+    ->setFieldAlias('created_at', 'streamDate');
+// Set which fields to include in the output
+$processor->setFields([
+    'stream_id',
+    'title',
+    'viewers',
+    'featured',
+    'rating',
+    'amount',
+    'streamDate',
+    'tags',
+    'metadata'
+]);
+// Process data
+$result = $processor->process();
+
+print_r($result);
