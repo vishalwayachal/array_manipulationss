@@ -1,183 +1,197 @@
 # ArrayDataProcessor
 
-A powerful and flexible PHP utility for processing, filtering, and transforming arrays of data with support for type casting, field aliasing, and multiple output formats.
+A robust, production-grade PHP class for advanced array data manipulation, filtering, sorting, grouping, and transformation.
 
 ## Features
-
-- 🔄 Custom filter callbacks
-- 🔀 AND/OR filter logic
-- 📝 Field type casting (built-in and custom)
-- 🏷️ Field aliasing
-- 📤 Multiple output formats (array, JSON, CSV)
-- 📊 Sorting and pagination
-- 📝 Rich logging support
-- ⚡ Performance optimized
-- 🛡️ Error handling
+- Field casting and aliasing
+- Filtering (with AND/OR logic)
+- Multi-level sorting
+- Pagination (limit/offset)
+- Grouping by any key (supports dot notation)
+- Array utility methods: `count`, `first`, `last`, `random`, `reverse`, `shuffle`, `pluck`, `filter`, `map`, `sum`, `avg`, `min`, `max`
+- CSV/JSON export
+- Logging of all operations
 
 ## Installation
+Copy `ArrayDataProcessor.php` into your project. No external dependencies required.
 
+## Usage Examples
 
-
-## Basic Usage
-
+### 1. Basic Setup
 ```php
-use ArrayDataProcessor;
+require 'ArrayDataProcessor.php';
 
-//Initialise with data
-$processor = new ArrayDataProcessor($data);
-
-// Configure and process
-$result = $processor
-    ->setFieldType('id', 'int')
-    ->setFieldType('amount', function($value) {
-        return number_format($value / 100, 2);
-    })
-    ->setFilters([
-        'status' => ['type' => 'equals', 'value' => 'active']
-    ])
-    ->process();
-```
-
-## Advanced Example
-
-Here's a comprehensive example showing all features:
-
-```php
-// Sample data array with rich information
 $data = [
     [
-        'stream_id' => '1001',
-        'user_id' => '5001',
-        'title' => 'Gaming Stream',
-        'viewer_count' => '1500',
+        'id' => '1',
+        'title' => 'Pro Gaming',
+        'category' => 'Gaming',
         'is_featured' => 'Y',
-        'rating' => '4.50',
-        'amount' => '2500', // Amount in cents
+        'views' => '1200',
         'created_at' => '2025-05-16 08:00:00',
-        'tags' => 'gaming,live,esports',
-        'metadata' => json_encode([
-            'device' => 'mobile',
-            'quality' => 'HD'
-        ])
-    ]
+        'details' => json_encode(['platform' => 'Twitch', 'quality' => 'HD'])
+    ],
+    // ... more rows ...
 ];
 
-// Initialize processor
 $processor = new ArrayDataProcessor($data);
-
-// Configure type casting
-$processor
-    // Basic type casting
-    ->setFieldType('stream_id', 'int')
-    ->setFieldType('viewer_count', 'int')
-    
-    // Custom type casting
-    ->setFieldType('amount', function($value) {
-        return number_format($value / 100, 2, '.', '');
-    })
-    ->setFieldType('created_at', function($value) {
-        return new DateTime($value);
-    })
-    ->setFieldType('tags', function($value) {
-        return array_map('trim', explode(',', $value));
-    })
-    ->setFieldType('metadata', function($value) {
-        return json_decode($value, true);
-    });
-
-// Set up filters
-$processor->setFilters([
-    'viewer_count' => [
-        'type' => 'greaterThan',
-        'value' => 1000
-    ],
-    'is_featured' => [
-        'type' => 'equals',
-        'value' => 'Y'
-    ]
-]);
-
-// Set field aliases
-$processor
-    ->setFieldAlias('viewer_count', 'viewers')
-    ->setFieldAlias('created_at', 'streamDate');
-
-// Select output fields
-$processor->setFields([
-    'stream_id',
-    'title',
-    'viewers',
-    'rating',
-    'streamDate',
-    'tags',
-    'metadata'
-]);
-
-// Process data
-$result = $processor->process();
 ```
 
-## Available Methods
-
-### Type Casting
-- `setFieldType(string $field, string|callable $type)`: Set type casting for a field
-  - Built-in types: 'int', 'float', 'bool', 'string', 'array'
-  - Custom casting via callback function
-
-### Filtering
-- `setFilters(array $filters)`: Set filter conditions
-- `setFilterLogic(string $logic)`: Set filter logic ('AND'/'OR')
-- `addCustomFilter(string $field, callable $callback)`: Add custom filter
-
-### Field Management
-- `setFields(array $fields)`: Select fields for output
-- `setFieldAlias(string $original, string $alias)`: Set field aliases
-
-### Output Formatting
-- `setOutputFormat(string $format)`: Set output format ('array'/'json'/'csv')
-
-### Pagination
-- `setLimit(?int $limit)`: Set maximum items to return
-- `setOffset(?int $offset)`: Set number of items to skip
-
-### Sorting
-- `setSort(array $sort)`: Set sorting criteria
-
-## Filter Types
-
-- `equals`
-- `notEquals`
-- `contains`
-- `startsWith`
-- `endsWith`
-- `in`
-- `notIn`
-- `greaterThan`
-- `lessThan`
-- `between`
-- `before`
-- `after`
-- `isNull`
-- `isNotNull`
-
-## Error Handling
-
-The processor includes comprehensive error handling and logging:
-
+### 2. Configure Field Types and Aliases
 ```php
-try {
-    $result = $processor->process();
-} catch (\InvalidArgumentException $e) {
-    // Handle validation errors
-} catch (\Exception $e) {
-    // Handle processing errors
-}
+$processor
+    ->setFieldType('id', 'int') // Cast 'id' as integer
+    ->setFieldType('views', 'int') // Cast 'views' as integer
+    ->setFieldType('created_at', 'datetime') // Cast 'created_at' as datetime string
+    ->setFieldType('details', 'json') // Parse 'details' as JSON
+    ->setFieldAlias('views', 'view_count') // Alias 'views' to 'view_count'
+    ->setFieldAlias('created_at', 'published_at'); // Alias 'created_at' to 'published_at'
 ```
 
-## Contributing
+### 3. Select Output Fields
+```php
+$processor->setFields(['id', 'title', 'view_count', 'category', 'published_at', 'details.platform']);
+```
 
-Contributions are welcome! Please feel free to submit a Pull Request.
+### 4. Filtering
+```php
+// Add a filter for featured Gaming category
+$processor->addFilter(function ($row) {
+    return (
+        $row['is_featured'] === 'Y' &&
+        $row['category'] === 'Gaming'
+    );
+}, '__group__');
+```
+
+### 5. Sorting and Pagination
+```php
+$processor
+    ->addSortBy('views', 'desc') // Sort by views descending
+    ->addSortBy('id', 'asc')     // Then by id ascending
+    ->setLimit(10)               // Limit to 10 results
+    ->setOffset(0);              // Start from the first result
+```
+
+### 6. Grouping
+```php
+$grouped = $processor->groupBy('category'); // Group by category
+print_r($grouped);
+```
+
+### 7. Output Processed Data
+```php
+print_r($processor->toArray()); // Output as array
+echo $processor->toJson();      // Output as JSON
+echo $processor->toCsv();       // Output as CSV
+```
+
+### 8. Array Utility Methods
+
+#### count()
+Returns the number of processed records.
+```php
+echo $processor->count();
+```
+
+#### first()
+Returns the first record.
+```php
+echo json_encode($processor->first());
+```
+
+#### last()
+Returns the last record.
+```php
+echo json_encode($processor->last());
+```
+
+#### random($num = 1)
+Returns one or more random records.
+```php
+echo json_encode($processor->random());      // One random record
+echo json_encode($processor->random(2));     // Two random records
+```
+
+#### reverse()
+Returns the processed data in reverse order.
+```php
+echo json_encode($processor->reverse());
+```
+
+#### shuffle()
+Returns the processed data in random order.
+```php
+echo json_encode($processor->shuffle());
+```
+
+#### pluck($key)
+Returns an array of values for a single column.
+```php
+echo json_encode($processor->pluck('title'));
+```
+
+#### filter(callable $callback)
+Returns records matching a custom filter.
+```php
+echo json_encode($processor->filter(function($row) {
+    return $row['view_count'] > 1000;
+}));
+```
+
+#### map(callable $callback)
+Returns records after applying a transformation.
+```php
+echo json_encode($processor->map(function($row) {
+    $row['view_count'] = $row['view_count'] * 2;
+    return $row;
+}));
+```
+
+#### sum($key)
+Returns the sum of a column.
+```php
+echo $processor->sum('view_count');
+```
+
+#### avg($key)
+Returns the average of a column.
+```php
+echo $processor->avg('view_count');
+```
+
+#### min($key)
+Returns the minimum value of a column.
+```php
+echo $processor->min('view_count');
+```
+
+#### max($key)
+Returns the maximum value of a column.
+```php
+echo $processor->max('view_count');
+```
+
+### 9. Logging
+Get a log of all operations performed.
+```php
+print_r($processor->getLog());
+```
+
+### 10. Resetting Configuration
+Reset all filters, sorts, aliases, etc. (data remains).
+```php
+$processor->reset();
+```
+
+### 11. CSV Headers
+Get the headers for CSV export.
+```php
+echo json_encode($processor->getCsvHeaders());
+```
+
+## API Reference
+See the PHPDoc comments in `array_data1.php` for full method documentation and options.
 
 ## License
-
-This project is licensed under the MIT License - see the LICENSE file for details.
+MIT
