@@ -1,808 +1,826 @@
 <?php
-
-
-//REF :: https://gist.github.com/vishalwayachal/b9fee18d2f11b138d2362176cb68ecfb
 /**
- * ArrayDataProcessor - A flexible data processing utility for array manipulation for Peeks Platform
- * 
- * Production-ready data processing utility that handles array manipulation with proper logging,
- * error handling, and performance optimization for the Peeks platform.
- * 
- * This class provides functionality for filtering, sorting, and transforming arrays of data
- * with support for custom filters, field aliasing, type casting, and multiple output formats.
- * 
+ * ArrayDataProcessor
+ *
+ * A robust, production-grade PHP class for advanced array data manipulation, filtering, sorting, grouping, and transformation.
+ *
  * Features:
- * - Custom filter callbacks
- * - AND/OR filter logic
- * - Field type casting
- * - Field aliasing
- * - Multiple output formats (array, JSON, CSV)
- * - Sorting and pagination
- * 
- * Example Usage:
- * ```php
- * // Sample data array with rich stream information
- * $data = [
- *     [
- *         'stream_id' => '1001',
- *         'user_id' => '5001',
- *         'title' => 'Gaming Stream',
- *         'viewer_count' => '1500',
- *         'is_featured' => 'Y',
- *         'is_adult' => 'N',
- *         'rating' => '4.50',
- *         'amount' => '2500', // Amount in cents
- *         'created_at' => '2025-05-16 08:00:00',
- *         'status' => '1',
- *         'tags' => 'gaming,live,esports',
- *         'metadata' => json_encode([
- *             'device' => 'mobile',
- *             'quality' => 'HD',
- *             'game' => 'Fortnite'
- *         ])
- *     ],
- *     [
- *         'stream_id' => '1002',
- *         'user_id' => '5002',
- *         'title' => 'Cooking Show',
- *         'viewer_count' => '800',
- *         'is_featured' => 'N',
- *         'is_adult' => 'N',
- *         'rating' => '4.75',
- *         'amount' => '1500',
- *         'created_at' => '2025-05-16 09:30:00',
- *         'status' => '1',
- *         'tags' => 'cooking,recipe,food',
- *         'metadata' => json_encode([
- *             'device' => 'desktop',
- *             'quality' => '4K',
- *             'cuisine' => 'Italian'
- *         ])
- *     ]
- * ];
- * 
- * // Initialize processor
- * $processor = new ArrayDataProcessor($data);
- * // Configure type casting for different fields
- * $processor
- *     // Basic type casting
- *     ->setFieldType('stream_id', 'int')
- *     ->setFieldType('user_id', 'int')
- *     ->setFieldType('viewer_count', 'int')
- *     // Convert amount from cents to dollars with formatting
- *     ->setFieldType('amount', function($value) {
- *         return number_format($value / 100, 2, '.', '');
- *     })
- *     // Convert rating to float and ensure 2 decimal places
- *     ->setFieldType('rating', function($value) {
- *         return number_format((float)$value, 2, '.', '');
- *     })
- * 
- *     // Parse date strings into DateTime objects
- *     ->setFieldType('created_at', function($value) {
- *         return new \DateTime($value);
- *     })
- * 
- *     // Convert status codes to meaningful strings
- *     ->setFieldType('status', function($value) {
- *         $statusMap = [
- *             '0' => 'inactive',
- *             '1' => 'active',
- *             '2' => 'suspended',
- *             '3' => 'pending'
- *         ];
- *         return $statusMap[$value] ?? 'unknown';
- *     })
- * 
- *     // Convert comma-separated tags to arrays
- *     ->setFieldType('tags', function($value) {
- *         return array_map('trim', explode(',', $value));
- *     })
- * 
- *     // Parse JSON metadata and add processing timestamp
- *     ->setFieldType('metadata', function($value) {
- *         $metadata = json_decode($value, true);
- *         $metadata['processed_at'] = date('Y-m-d H:i:s');
- *         return $metadata;
- *     });
- * 
- * // Set up comprehensive filters
- * $processor->setFilters([
- *     'viewer_count' => [
- *         'type' => 'greaterThan',
- *         'value' => 1000
- *     ],
- *     'is_featured' => [
- *         'type' => 'equals',
- *         'value' => 'Y'
- *     ],
- *     'is_adult' => [
- *         'type' => 'equals',
- *         'value' => 'N'
- *     ],
- *     'rating' => [
- *         'type' => 'greaterThan',
- *         'value' => '4.00'
- *     ],
- *     'status' => [
- *         'type' => 'equals',
- *         'value' => 'active'
- *     ]
- * ]);
- * 
- * // Set field aliases for cleaner output
- * $processor
- *     ->setFieldAlias('viewer_count', 'viewers')
- *     ->setFieldAlias('is_featured', 'featured')
- *     ->setFieldAlias('created_at', 'streamDate');
- * 
- * // Select fields to include in output
- * $processor->setFields([
- *     'stream_id',
- *     'title',
- *     'viewers',
- *     'featured',
- *     'rating',
- *     'amount',
- *     'streamDate',
- *     'tags',
- *     'metadata'
- * ]);
- * 
- * // Process data and get results
- * $result = $processor->process();
- * ```
- * 
- * @package Peeks\Lib
+ * - Field casting and aliasing
+ * - Filtering (with AND/OR logic)
+ * - Multi-level sorting
+ * - Pagination (limit/offset)
+ * - Grouping by any key (supports dot notation)
+ * - Array utility methods: count, first, last, random, reverse, shuffle, pluck, filter, map, sum, avg, min, max
+ * - CSV/JSON export
+ * - Logging of all operations
+ *
+ * @author  Your Name
+ * @license MIT
+ * @version 1.0.0
  */
 class ArrayDataProcessor
 {
-    /** @var array The source data to process */
-    protected $data;
-
-    /** @var array Filter conditions to apply */
+    // Data and configuration
+    protected $data = [];
     protected $filters = [];
-
-    /** @var array Sorting criteria */
-    protected $sort = [];
-
-    /** @var int|null Maximum number of items to return */
-    protected $limit = null;
-
-    /** @var int Number of items to skip */
-    protected $offset = 0;
-
-    /** @var array Fields to include in output */
-    protected $fields = [];
-
-    /** @var array Field name mappings */
-    protected $fieldAliases = [];
-
-    /** @var array Custom filter callbacks */
-    protected $customFilters = [];
-
-    /** @var string Logic to apply between filters (AND/OR) */
     protected $filterLogic = 'AND';
-
-    /** @var string Output format (array/json/csv) */
-    protected $outputFormat = 'array';
-
-    /** @var array Type casting configuration */
-    protected $typeMap = [];
-
-    /** @var array Custom type casting callbacks */
-    protected $customTypeMap = [];
-
-
+    protected $aliases = [];
+    protected $casts = [];
+    protected $sortFields = [];
+    protected $limit = -1;
+    protected $offset = 0;
+    protected $fields = [];
+    protected $log = [];
+    protected $enumMap = [];
 
     /**
      * Constructor
-     * 
-     * @param array $data The source data to process
+     * @param array $data
      */
-    public function __construct(array $data)
+    public function __construct($data)
     {
         $this->data = $data;
-
-
-        // Log initialization with both PSR-3 and RV logger
-        $logContext = [
-            'count' => count($data),
-            'memory' => memory_get_usage(true),
-            'dataType' => gettype(reset($data)),
-        ];
     }
 
     /**
-     * Sets the filter conditions for the data processing
-     * 
-     * @param array $filters Associative array of filter conditions
-     * @return self
+     * Set the type cast for a field
+     * @param string $field
+     * @param string|callable $type
+     * @return $this
      */
-    public function setFilters(array $filters)
+    public function setFieldType($field, $type)
     {
-        $this->filters = $filters;
+        $this->casts[$field] = $type;
         return $this;
     }
 
     /**
-     * Sets the sorting criteria for the data processing
-     * 
-     * @param array $sort Associative array of sort fields and directions
-     * @return self
+     * Set an alias for a field
+     * @param string $field
+     * @param string $alias
+     * @return $this
      */
-    public function setSort(array $sort)
+    public function setFieldAlias($field, $alias)
     {
-        $this->sort = $sort;
+        $this->aliases[$field] = $alias;
         return $this;
     }
 
     /**
-     * Sets the maximum number of items to return
-     * 
-     * @param int|null $limit Maximum number of items
-     * @return self
+     * Set the output fields (supports dot notation for nested fields)
+     * @param array $fields
+     * @return $this
      */
-    public function setLimit(?int $limit)
-    {
-        $this->limit = $limit;
-        return $this;
-    }
-
-    /**
-     * Sets the number of items to skip
-     * 
-     * @param int|null $offset Number of items to skip
-     * @return self
-     */
-    public function setOffset(?int $offset)
-    {
-        $this->offset = $offset ?? 0;
-        return $this;
-    }
-
-    /**
-     * Sets the fields to be included in the output
-     * 
-     * @param array $fields List of field names to include
-     * @return self
-     */
-    public function setFields(array $fields)
+    public function setFields($fields)
     {
         $this->fields = $fields;
         return $this;
     }
 
     /**
-     * Sets the filter logic to AND or OR
-     * 
-     * @param string $logic Either 'AND' or 'OR'
-     * @return self
-     * @throws \InvalidArgumentException If logic is invalid
+     * Add additional fields to output
+     * @param array $keys
+     * @return $this
      */
-    public function setFilterLogic(string $logic)
+    public function selectKeys($keys)
     {
-        $logic = strtoupper($logic);
-        if (!in_array($logic, ['AND', 'OR'])) {
-            throw new \InvalidArgumentException('Filter logic must be either AND or OR');
-        }
-        $this->filterLogic = $logic;
+        $this->fields = array_merge($this->fields, $keys);
         return $this;
     }
 
     /**
-     * Adds a custom filter callback for a field
-     * 
-     * @param string $field Field name
-     * @param callable $callback Filter callback function
-     * @return self
+     * Set multiple filters at once
+     * @param array $filterDefinitions
+     * @return $this
      */
-    public function addCustomFilter(string $field, callable $callback)
+    public function setFilters($filterDefinitions)
     {
-        $this->customFilters[$field] = $callback;
+        foreach ($filterDefinitions as $field => $rule) {
+            $this->addFilter(function ($row) use ($field, $rule) {
+                $value = isset($row[$field]) ? $row[$field] : null;
+                $expected = $rule['value'];
+                switch ($rule['type']) {
+                    case 'equals': return $value == $expected;
+                    case 'notEquals': return $value != $expected;
+                    case 'greaterThan': return $value > $expected;
+                    case 'greaterThanOrEqual': return $value >= $expected;
+                    case 'lessThan': return $value < $expected;
+                    case 'lessThanOrEqual': return $value <= $expected;
+                    case 'in': return in_array($value, (array) $expected);
+                    case 'notIn': return !in_array($value, (array) $expected);
+                    case 'like': return strpos((string) $value, (string) $expected) !== false;
+                    case 'startsWith': return strpos((string) $value, (string) $expected) === 0;
+                    case 'endsWith': return substr((string) $value, -strlen((string) $expected)) === (string) $expected;
+                    case 'between': return $value >= $expected[0] && $value <= $expected[1];
+                    case 'null': return is_null($value);
+                    case 'notNull': return !is_null($value);
+                    case 'empty': return empty($value);
+                    case 'notEmpty': return !empty($value);
+                    default: return true;
+                }
+            }, $field);
+        }
         return $this;
     }
 
     /**
-     * Sets an alias for a field name in the output
-     * 
-     * @param string $originalField Original field name
-     * @param string $alias New field name
-     * @return self
+     * Add a filter callback
+     * @param callable $callback
+     * @param string|null $name
+     * @return $this
      */
-    public function setFieldAlias(string $originalField, string $alias)
+    public function addFilter($callback, $name = null)
     {
-        $this->fieldAliases[$originalField] = $alias;
-
+        if ($name) {
+            $this->filters[$name] = $callback;
+        } else {
+            $this->filters[] = $callback;
+        }
         return $this;
     }
 
     /**
-     * Sets the output format
-     * 
-     * @param string $format One of 'array', 'json', or 'csv'
-     * @return self
-     * @throws \InvalidArgumentException If format is invalid
+     * Remove a filter by name
+     * @param string $name
+     * @return $this
      */
-    public function setOutputFormat(string $format)
+    public function removeFilter($name)
     {
-        if (!in_array($format, ['array', 'json', 'csv'])) {
-            throw new \InvalidArgumentException('Unsupported output format');
-        }
-        $this->outputFormat = $format;
+        unset($this->filters[$name]);
         return $this;
     }
 
     /**
-     * Sets the type casting for a field
-     * 
-     * @param string $field Field name
-     * @param string|callable $type One of 'int', 'float', 'bool', 'string', 'array' or a callback function
-     * @return self
-     * @throws \InvalidArgumentException If type is invalid
+     * Set filter logic (AND/OR)
+     * @param string $logic
+     * @return $this
      */
-    public function setFieldType(string $field, $type)
+    public function setFilterLogic($logic)
     {
-        if (is_callable($type)) {
-            $this->customTypeMap[$field] = $type;
-            return $this;
-        }
-
-        $validTypes = ['int', 'integer', 'float', 'double', 'bool', 'boolean', 'string', 'array'];
-        if (!in_array($type, $validTypes)) {
-            throw new \InvalidArgumentException("Unsupported type: {$type}");
-        }
-        $this->typeMap[$field] = $type;
+        $this->filterLogic = strtoupper($logic);
         return $this;
     }
 
     /**
-     * Process the data with all configured operations
-     * 
-     * @return mixed Processed data in the configured output format
-     * @throws \Exception If any processing step fails
+     * Set all field aliases at once
+     * @param array $aliases
+     * @return $this
      */
-    public function process()
+    public function setAliases($aliases)
     {
-        $startTime = microtime(true);
-
-        try {
-            // Log processing start
-
-
-            // Apply type casting first to ensure all values are properly cast
-            $result = $this->applyTypeCasting($this->data);
-
-            // Continue with the regular processing pipeline
-            if (!empty($this->filters)) {
-                $filterStartTime = microtime(true);
-                $result = $this->applyFilters($result);
-            }
-
-            if (!empty($this->sort)) {
-                $sortStartTime = microtime(true);
-                $result = $this->applySort($result);
-            }
-
-            // Apply pagination
-            if ($this->limit !== null || $this->offset > 0) {
-                $result = $this->applyPagination($result);
-            }
-
-            // Project fields if needed
-            if (!empty($this->fields) || !empty($this->fieldAliases)) {
-                $result = $this->projectFields($result);
-            }
-
-            // Format final output
-            $output = $this->formatOutput($result);
-
-            return $output;
-        } catch (\Exception $e) {
-            throw $e;
-        }
+        $this->aliases = $aliases;
+        return $this;
     }
 
     /**
-     * Applies all configured filters to the data set
-     * 
-     * @return array Filtered data
+     * Set all field casts at once
+     * @param array $casts
+     * @return $this
+     */
+    public function setCasts($casts)
+    {
+        $this->casts = $casts;
+        return $this;
+    }
+
+    /**
+     * Set enum mapping for fields
+     * @param array $map
+     * @return $this
+     */
+    public function setEnumMap($map)
+    {
+        $this->enumMap = $map;
+        return $this;
+    }
+
+    /**
+     * Add a sort field (multi-level sorting supported)
+     * @param string $field
+     * @param string $direction
+     * @return $this
+     */
+    public function addSortBy($field, $direction = 'asc')
+    {
+        $this->sortFields[] = ['field' => $field, 'direction' => strtolower($direction)];
+        return $this;
+    }
+
+    /**
+     * Set result limit
+     * @param int $limit
+     * @return $this
+     */
+    public function setLimit($limit)
+    {
+        $this->limit = $limit;
+        return $this;
+    }
+
+    /**
+     * Set result offset
+     * @param int $offset
+     * @return $this
+     */
+    public function setOffset($offset)
+    {
+        $this->offset = $offset;
+        return $this;
+    }
+
+    /**
+     * Apply all filters to data
+     * @param array $data
+     * @return array
      */
     protected function applyFilters($data)
     {
-
-        return array_filter($data, function ($item) {
-            $results = [];
-
-            foreach ($this->filters as $key => $filter) {
-                try {
-                    // Check for custom filter first
-                    if (isset($this->customFilters[$key])) {
-                        $results[] = call_user_func($this->customFilters[$key], $item[$key] ?? null, $item);
-                        continue;
-                    }
-
-                    $value = $item[$key] ?? null;
-
-                    // Note: Type casting has already been applied in applyTypeCasting
-                    $type = $filter['type'] ?? 'equals';
-                    $expected = $filter['value'] ?? null;
-                    $caseSensitive = $filter['case_sensitive'] ?? false;
-
-                    switch ($type) {
-                        case 'equals':
-                            if ($caseSensitive) {
-                                if ($value !== $expected) return false;
-                            } else {
-                                if (strtolower((string)$value) !== strtolower((string)$expected)) return false;
-                            }
-                            break;
-
-                        case 'notEquals':
-                            if ($caseSensitive) {
-                                if ($value === $expected) return false;
-                            } else {
-                                if (strtolower((string)$value) === strtolower((string)$expected)) return false;
-                            }
-                            break;
-
-                        case 'contains':
-                            if ($caseSensitive) {
-                                if (strpos((string)$value, (string)$expected) === false) return false;
-                            } else {
-                                if (stripos((string)$value, (string)$expected) === false) return false;
-                            }
-                            break;
-
-                        case 'startsWith':
-                            if ($caseSensitive) {
-                                if (strpos((string)$value, (string)$expected) !== 0) return false;
-                            } else {
-                                if (stripos((string)$value, (string)$expected) !== 0) return false;
-                            }
-                            break;
-
-                        case 'endsWith':
-                            $length = strlen((string)$expected);
-                            if ($caseSensitive) {
-                                if (substr((string)$value, -$length) !== (string)$expected) return false;
-                            } else {
-                                if (strtolower(substr((string)$value, -$length)) !== strtolower((string)$expected)) return false;
-                            }
-                            break;
-
-                        case 'in':
-                            if (!in_array($value, (array)$expected, true)) return false;
-                            break;
-
-                        case 'notIn':
-                            if (in_array($value, (array)$expected, true)) return false;
-                            break;
-
-                        case 'greaterThan':
-                            if ($value <= $expected) return false;
-                            break;
-
-                        case 'lessThan':
-                            if ($value >= $expected) return false;
-                            break;
-
-                        case 'between':
-                            if (!is_array($expected) || count($expected) !== 2) return false;
-                            if ($value < $expected[0] || $value > $expected[1]) return false;
-                            break;
-
-                        case 'before':
-                            if ($value >= $expected) return false;
-                            break;
-
-                        case 'after':
-                            if ($value <= $expected) return false;
-                            break;
-
-                        case 'isNull':
-                            if (!is_null($value)) return false;
-                            break;
-
-                        case 'isNotNull':
-                            if (is_null($value)) return false;
-                            break;
-
-                        default:
-                            $results[] = false;
-                            break;
-                    }
-
-                    $results[] = true;
-                } catch (\Exception $e) {
-                    $results[] = false;
-                }
-            }
-
-            // Apply AND/OR logic to results
-            if (empty($results)) {
-                return true; // No filters applied
-            }
-
-            return $this->filterLogic === 'AND'
-                ? !in_array(false, $results, true)  // All must be true
-                : in_array(true, $results, true);   // At least one must be true
-        });
-    }
-
-    protected function applySort(array $data)
-    {
-        if (!empty($this->sort)) {
-            usort($data, function ($a, $b) {
-                foreach ($this->sort as $key => $direction) {
-                    $valA = $a[$key] ?? null;
-                    $valB = $b[$key] ?? null;
-
-                    // Type casting has already been applied at this point
-                    $cmp = is_string($valA) && is_string($valB)
-                        ? strcasecmp($valA, $valB)
-                        : ($valA <=> $valB);
-
-                    if ($cmp !== 0) {
-                        return strtolower($direction) === 'desc' ? -$cmp : $cmp;
-                    }
-                }
-                return 0;
+        if (empty($this->filters)) return $data;
+        if (isset($this->filters['__group__'])) {
+            $filtered = array_filter($data, function($row) {
+                return call_user_func($this->filters['__group__'], $row);
             });
+            $this->log[] = "Applied grouped filter";
+            return $filtered;
         }
+        $initialCount = count($data);
+        $filtered = array_filter($data, function ($row) {
+            $results = array();
+            foreach ($this->filters as $filter) {
+                $results[] = $filter($row);
+            }
+            return $this->filterLogic === 'AND'
+                ? !in_array(false, $results, true)
+                : in_array(true, $results, true);
+        });
+        $filteredCount = count($filtered);
+        $this->log[] = "Filtered records count: $filteredCount out of $initialCount";
+        return $filtered;
+    }
+
+    /**
+     * Apply multi-level sorting
+     * @param array $data
+     * @return array
+     */
+    protected function applySorting($data)
+    {
+        if (empty($this->sortFields)) return $data;
+        usort($data, array($this, '_multiSortCompare'));
         return $data;
     }
 
-    protected function applyPagination(array $data)
+    /**
+     * Multi-level sort comparison
+     * @param array $a
+     * @param array $b
+     * @return int
+     */
+    protected function _multiSortCompare($a, $b)
     {
-        if ($this->limit !== null) {
-            return array_slice(array_values($data), $this->offset, $this->limit);
+        foreach ($this->sortFields as $sort) {
+            $field = $sort['field'];
+            $direction = isset($sort['direction']) ? strtolower($sort['direction']) : 'asc';
+            $aVal = isset($a[$field]) ? $a[$field] : null;
+            $bVal = isset($b[$field]) ? $b[$field] : null;
+            if ($aVal == $bVal) continue;
+            $cmp = ($aVal < $bVal) ? -1 : 1;
+            return ($direction === 'asc') ? $cmp : -$cmp;
         }
-        return array_values($data);
+        return 0;
     }
 
-    protected function projectFields(array $data)
+    /**
+     * Apply pagination (limit/offset)
+     * @param array $data
+     * @return array
+     */
+    protected function applyPagination($data)
     {
-        if (!empty($this->fields) || !empty($this->fieldAliases)) {
-            return array_map(function ($item) {
-                $projected = [];
+        return $this->limit < 0 ? $data : array_slice($data, $this->offset, $this->limit);
+    }
 
-                // Project specified fields
-                if (!empty($this->fields)) {
-                    $projected = array_intersect_key($item, array_flip($this->fields));
-                } else {
-                    $projected = $item;
-                }
+    /**
+     * Cast and alias fields, flatten nested arrays
+     * @param array $data
+     * @return array
+     */
+    protected function castAndAlias($data)
+    {
+        $out = array();
+        foreach ($data as $row) {
+            $flattened = $this->flattenAndProcessRow($row);
+            if ($flattened !== null) {
+                $out[] = $flattened;
+            }
+        }
+        return $out;
+    }
 
-                // Apply field aliases
-                foreach ($this->fieldAliases as $original => $alias) {
-                    if (isset($projected[$original])) {
-                        $projected[$alias] = $projected[$original];
-                        unset($projected[$original]);
+    /**
+     * Flatten and process a row, supporting dot notation and aliases
+     * @param array $row
+     * @param string $prefix
+     * @return array
+     */
+    protected function flattenAndProcessRow($row, $prefix = '')
+    {
+        $result = array();
+        foreach ($row as $key => $value) {
+            $fullKey = $prefix . $key;
+            if (is_array($value) && $this->isAssoc($value)) {
+                $nested = $this->flattenAndProcessRow($value, $fullKey . '.');
+                $result = array_merge($result, $nested);
+            } else {
+                $alias = isset($this->aliases[$fullKey]) ? $this->aliases[$fullKey] : $fullKey;
+                $cast = isset($this->casts[$fullKey]) ? $this->casts[$fullKey] : null;
+                $result[$alias] = $this->castValue($value, $cast, $fullKey);
+            }
+        }
+        // If fields are set, ensure all requested fields are present (even if null)
+        if (!empty($this->fields)) {
+            $out = array();
+            foreach ($this->fields as $field) {
+                // Support dot notation for nested fields
+                if (strpos($field, '.') !== false) {
+                    $parts = explode('.', $field);
+                    $val = $row;
+                    foreach ($parts as $part) {
+                        if (is_array($val) && isset($val[$part])) {
+                            $val = $val[$part];
+                        } else {
+                            $val = null;
+                            break;
+                        }
                     }
+                    $out[$field] = $val;
+                } else {
+                    $out[$field] = isset($result[$field]) ? $result[$field] : null;
                 }
-
-                return $projected;
-            }, $data);
+            }
+            return $out;
         }
-        return $data;
+        return $result;
     }
 
-    protected function formatOutput(array $data)
+    /**
+     * Check if array is associative
+     * @param array $array
+     * @return bool
+     */
+    protected function isAssoc($array)
     {
-        switch ($this->outputFormat) {
-            case 'json':
-                return json_encode($data);
-            case 'csv':
-                if (empty($data)) {
-                    return '';
-                }
-                $output = fopen('php://temp', 'r+');
-                // Write headers
-                fputcsv($output, array_keys(reset($data)));
-                // Write data
-                foreach ($data as $row) {
-                    fputcsv($output, $row);
-                }
-                rewind($output);
-                $csv = stream_get_contents($output);
-                fclose($output);
-                return $csv;
-            default:
-                return $data;
-        }
+        return array_keys($array) !== range(0, count($array) - 1);
     }
 
-    protected function castValue($value, string $type, string $field = null)
+    /**
+     * Cast a value to a given type or via callback
+     * @param mixed $value
+     * @param string|callable|null $type
+     * @param string $key
+     * @return mixed
+     */
+    protected function castValue($value, $type, $key = '')
     {
-        // Check for field-specific custom casting first
-        if ($field !== null && isset($this->customTypeMap[$field])) {
-            try {
-                return call_user_func($this->customTypeMap[$field], $value);
-            } catch (\Exception $e) {
-                throw $e;
-            }
-        }
-
-        // Handle standard type casting
-        try {
-            switch ($type) {
-                case 'int':
-                case 'integer':
-                    return (int)$value;
-                case 'float':
-                case 'double':
-                    return (float)$value;
-                case 'bool':
-                case 'boolean':
-                    return (bool)$value;
-                case 'string':
-                    return (string)$value;
-                case 'array':
-                    return (array)$value;
-                default:
-                    throw new \InvalidArgumentException("Unsupported type: {$type}");
-            }
-        } catch (\Exception $e) {
-
-            throw $e;
+        if (!$type) return $value;
+        if (is_callable($type)) return $type($value);
+        switch ($type) {
+            case 'int': return (int)$value;
+            case 'float': return (float)$value;
+            case 'string': return (string)$value;
+            case 'bool': return (bool)$value;
+            case 'json': return json_decode($value, true);
+            case 'date': return date('Y-m-d', strtotime($value));
+            case 'datetime':
+            case 'timestamp': return date('Y-m-d H:i:s', strtotime($value));
+            case 'enum': return isset($this->enumMap[$key][$value]) ? $this->enumMap[$key][$value] : $value;
+            default: return $value;
         }
     }
 
     /**
-     * Apply type casting to all configured fields in the dataset
-     * 
-     * @param array $data The data to process
-     * @return array Processed data with type casting applied
+     * Process the data (filters, sorting, pagination, casting, aliasing)
+     * @return array
      */
-    protected function applyTypeCasting(array $data)
+    public function process()
     {
-        if (empty($this->typeMap) && empty($this->customTypeMap)) {
-            return $data;
+        $this->log[] = 'Start processing';
+        $data = $this->applyFilters($this->data);
+        $this->log[] = 'Applied filters';
+        $data = $this->applySorting($data);
+        $this->log[] = 'Applied sorting';
+        $data = $this->applyPagination($data);
+        $this->log[] = 'Applied pagination';
+        $data = $this->castAndAlias($data);
+        $this->log[] = 'Applied casting and aliasing';
+        return $data;
+    }
+
+    /**
+     * Get processed data as array
+     * @return array
+     */
+    public function toArray()
+    {
+        $data = $this->process();
+        $this->log[] = 'Output as array';
+        return $data;
+    }
+
+    /**
+     * Get processed data as JSON
+     * @param int $flags
+     * @return string
+     */
+    public function toJson($flags = 128)
+    {
+        $data = $this->process();
+        $this->log[] = 'Output as JSON';
+        return json_encode($data, $flags);
+    }
+
+    /**
+     * Get processed data as CSV
+     * @param string $delimiter
+     * @param string $enclosure
+     * @return string
+     */
+    public function toCsv($delimiter = ',', $enclosure = '"')
+    {
+        $data = $this->process();
+        if (empty($data)) return '';
+        $output = array();
+        $headers = array_keys($data[0]);
+        $output[] = implode($delimiter, $headers);
+        foreach ($data as $row) {
+            $output[] = implode($delimiter, array_map(function($v) use ($enclosure) {
+                return $enclosure . str_replace($enclosure, $enclosure . $enclosure, $v) . $enclosure;
+            }, $row));
         }
+        $this->log[] = 'Output as CSV';
+        return implode("\n", $output);
+    }
 
-        return array_map(function ($item) {
-            $processed = $item;
+    /**
+     * Get CSV headers
+     * @return array
+     */
+    public function getCsvHeaders()
+    {
+        $data = $this->process();
+        if (empty($data)) return array();
+        return array_keys($data[0]);
+    }
 
-            // Apply standard type casting first
-            foreach ($this->typeMap as $field => $type) {
-                if (isset($item[$field])) {
-                    $processed[$field] = $this->castValue($item[$field], $type, $field);
+    /**
+     * Get log of operations
+     * @return array
+     */
+    public function getLog()
+    {
+        return $this->log;
+    }
+
+    /**
+     * Reset all configuration (except data)
+     * @return $this
+     */
+    public function reset()
+    {
+        $this->filters = array();
+        $this->filterLogic = 'AND';
+        $this->aliases = array();
+        $this->casts = array();
+        $this->sortFields = array();
+        $this->limit = -1;
+        $this->offset = 0;
+        $this->fields = array();
+        $this->enumMap = array();
+        $this->log = array();
+        return $this;
+    }
+
+    /**
+     * Group processed data by a key (supports dot notation)
+     * @param string $key
+     * @return array
+     */
+    public function groupBy($key)
+    {
+        $data = $this->process();
+        $grouped = array();
+        foreach ($data as $row) {
+            $groupValue = null;
+            if (strpos($key, '.') !== false) {
+                $parts = explode('.', $key);
+                $val = $row;
+                foreach ($parts as $part) {
+                    if (is_array($val) && isset($val[$part])) {
+                        $val = $val[$part];
+                    } else {
+                        $val = null;
+                        break;
+                    }
                 }
+                $groupValue = $val;
+            } else {
+                $groupValue = isset($row[$key]) ? $row[$key] : null;
             }
-
-            // Apply custom type casting
-            foreach ($this->customTypeMap as $field => $callback) {
-                if (isset($item[$field])) {
-                    $processed[$field] = call_user_func($callback, $item[$field]);
-                }
+            if (!isset($grouped[$groupValue])) {
+                $grouped[$groupValue] = array();
             }
+            $grouped[$groupValue][] = $row;
+        }
+        $this->log[] = "Grouped by " . $key;
+        return $grouped;
+    }
 
-            return $processed;
-        }, $data);
+    // --- Array utility methods ---
+
+    /**
+     * Get count of processed records
+     * @return int
+     */
+    public function count()
+    {
+        return count($this->process());
+    }
+
+    /**
+     * Get first record
+     * @return array|null
+     */
+    public function first()
+    {
+        $data = $this->process();
+        return count($data) ? $data[0] : null;
+    }
+
+    /**
+     * Get last record
+     * @return array|null
+     */
+    public function last()
+    {
+        $data = $this->process();
+        return count($data) ? $data[count($data)-1] : null;
+    }
+
+    /**
+     * Get one or more random records
+     * @param int $num
+     * @return array|mixed|null
+     */
+    public function random($num = 1)
+    {
+        $data = $this->process();
+        if (empty($data)) return null;
+        if ($num === 1) {
+            return $data[array_rand($data)];
+        }
+        $keys = array_rand($data, min($num, count($data)));
+        if (!is_array($keys)) $keys = [$keys];
+        $result = [];
+        foreach ($keys as $k) {
+            $result[] = $data[$k];
+        }
+        return $result;
+    }
+
+    /**
+     * Get reversed processed data
+     * @return array
+     */
+    public function reverse()
+    {
+        return array_reverse($this->process());
+    }
+
+    /**
+     * Get shuffled processed data
+     * @return array
+     */
+    public function shuffle()
+    {
+        $data = $this->process();
+        shuffle($data);
+        return $data;
+    }
+
+    /**
+     * Pluck a single column from processed data
+     * @param string $key
+     * @return array
+     */
+    public function pluck($key)
+    {
+        $data = $this->process();
+        $result = array();
+        foreach ($data as $row) {
+            $result[] = isset($row[$key]) ? $row[$key] : null;
+        }
+        return $result;
+    }
+
+    /**
+     * Filter processed data with a callback
+     * @param callable $callback
+     * @return array
+     */
+    public function filter(callable $callback)
+    {
+        $data = $this->process();
+        return array_values(array_filter($data, $callback));
+    }
+
+    /**
+     * Map processed data with a callback
+     * @param callable $callback
+     * @return array
+     */
+    public function map(callable $callback)
+    {
+        $data = $this->process();
+        return array_map($callback, $data);
+    }
+
+    /**
+     * Sum a column in processed data
+     * @param string $key
+     * @return float|int
+     */
+    public function sum($key)
+    {
+        $data = $this->process();
+        $sum = 0;
+        foreach ($data as $row) {
+            $sum += isset($row[$key]) ? $row[$key] : 0;
+        }
+        return $sum;
+    }
+
+    /**
+     * Average of a column in processed data
+     * @param string $key
+     * @return float|int
+     */
+    public function avg($key)
+    {
+        $data = $this->process();
+        $count = count($data);
+        return $count ? $this->sum($key) / $count : 0;
+    }
+
+    /**
+     * Minimum value of a column in processed data
+     * @param string $key
+     * @return mixed
+     */
+    public function min($key)
+    {
+        $data = $this->process();
+        $values = array();
+        foreach ($data as $row) {
+            if (isset($row[$key])) $values[] = $row[$key];
+        }
+        return empty($values) ? null : min($values);
+    }
+
+    /**
+     * Maximum value of a column in processed data
+     * @param string $key
+     * @return mixed
+     */
+    public function max($key)
+    {
+        $data = $this->process();
+        $values = array();
+        foreach ($data as $row) {
+            if (isset($row[$key])) $values[] = $row[$key];
+        }
+        return empty($values) ? null : max($values);
     }
 }
 
+// --- Example usage ---
 
+// Example data array
 $data = [
     [
-        'stream_id' => '1001',
-        'user_id' => '5001',
-        'title' => 'Gaming Stream',
-        'viewer_count' => '1500',
+        'id' => '1',
+        'title' => 'Pro Gaming',
+        'category' => 'Gaming',
         'is_featured' => 'Y',
-        'is_adult' => 'N',
-        'rating' => '4.50',
-        'amount' => '2500', // Amount in cents
+        'views' => '1200',
         'created_at' => '2025-05-16 08:00:00',
-        'status' => '1',
-        'tags' => 'gaming,live,esports',
-        'metadata' => json_encode([
-            'device' => 'mobile',
-            'quality' => 'HD',
-            'game' => 'Fortnite'
+        'details' => json_encode([
+            'platform' => 'Twitch',
+            'quality' => 'HD'
         ])
     ],
     [
-        'stream_id' => '1002',
-        'user_id' => '5002',
-        'title' => 'Cooking Show',
-        'viewer_count' => '800',
-        'is_featured' => 'N',
-        'is_adult' => 'N',
-        'rating' => '4.75',
-        'amount' => '1500',
-        'created_at' => '2025-05-16 09:30:00',
-        'status' => '1',
-        'tags' => 'cooking,recipe,food',
-        'metadata' => json_encode([
-            'device' => 'desktop',
-            'quality' => '4K',
-            'cuisine' => 'Italian'
+        'id' => '2',
+        'title' => 'Chill Stream',
+        'category' => 'Gaming',
+        'is_featured' => 'Y',
+        'views' => '800',
+        'created_at' => '2025-05-10 10:30:00',
+        'details' => json_encode([
+            'platform' => 'YouTube',
+            'quality' => 'SD'
         ])
-    ]
+    ],
+    [
+        'id' => '3',
+        'title' => 'Cooking Show',
+        'category' => 'Lifestyle',
+        'is_featured' => 'Y',
+        'views' => '1500',
+        'created_at' => '2025-05-12 14:00:00',
+        'details' => json_encode([
+            'platform' => 'Facebook',
+            'quality' => 'HD'
+        ])
+    ],
+    [
+        'id' => '4',
+        'title' => 'Tech Review',
+        'category' => 'Technology',
+        'is_featured' => 'Y',
+        'views' => '2000',
+        'created_at' => '2025-05-15 09:00:00',
+        'details' => json_encode([
+            'platform' => 'Twitch',
+            'quality' => '4K'
+        ])
+    ],
 ];
+
+// 1. Create the processor
 $processor = new ArrayDataProcessor($data);
-// Set up type casting for different fields
+
+// 2. Configure field types and aliases
 $processor
-    // Basic type casting
-    ->setFieldType('stream_id', 'int')
-    ->setFieldType('user_id', 'int')
-    ->setFieldType('viewer_count', 'int')
+    ->setFieldType('id', 'int')
+    ->setFieldType('views', 'int')
+    ->setFieldType('created_at', 'datetime')
+    ->setFieldType('details', 'json')
+    ->setFieldAlias('views', 'view_count')
+    ->setFieldAlias('created_at', 'published_at');
 
-    // Use YesNo utility for boolean fields
-    // Convert amount from cents to dollars with formatting
-    ->setFieldType('amount', function ($value) {
-        return number_format($value / 100, 2, '.', '');
-    })
-    // Convert rating to float and ensure 2 decimal places
-    ->setFieldType('rating', function ($value) {
-        return number_format((float)$value, 2, '.', '');
-    })
-    // Parse date strings into DateTime objects
-    ->setFieldType('created_at', function ($value) {
-        return new \DateTime($value);
-    })
-    // Convert status codes to meaningful strings
-    ->setFieldType('status', function ($value) {
-        $statusMap = [
-            '0' => 'inactive',
-            '1' => 'active',
-            '2' => 'suspended',
-            '3' => 'pending'
-        ];
-        return $statusMap[$value] ?? 'unknown';
-    }) // Convert comma-separated tags to arrays
-    ->setFieldType('tags', function ($value) {
-        return array_map('trim', explode(',', $value));
-    })
-    // Parse JSON metadata and add additional processing
-    ->setFieldType('metadata', function ($value) {
-        $metadata = json_decode($value, true);
-        // Add processed timestamp
-        $metadata['processed_at'] = date('Y-m-d H:i:s');
-        return $metadata;
-    });
-// Set up filters
-$processor->setFilters([
-    'viewer_count' => [
-        'type' => 'greaterThan',
-        'value' => 1000
-    ],
-    'is_featured' => [
-        'type' => 'equals',
-        'value' => 'Y'
-    ],
-    'is_adult' => [
-        'type' => 'equals',
-        'value' => 'N'
-    ],
-    'rating' => [
-        'type' => 'greaterThan',
-        'value' => '4.00'
-    ],
-    'status' => [
-        'type' => 'equals',
-        'value' => 'active'
-    ]
-]);
-// Set field aliases for cleaner output
-$processor->setFieldAlias('viewer_count', 'viewers')
-    ->setFieldAlias('is_featured', 'featured')
-    ->setFieldAlias('created_at', 'streamDate');
-// Set which fields to include in the output
-$processor->setFields([
-    'stream_id',
-    'title',
-    'viewers',
-    'featured',
-    'rating',
-    'amount',
-    'streamDate',
-    'tags',
-    'metadata'
-]);
-// Process data
-$result = $processor->process();
+// 3. Select only specific fields for output
+$processor->setFields(['id', 'title', 'view_count', 'category', 'published_at', 'details.platform']);
 
-print_r($result);
+// 4. Add a filter (e.g., only featured Gaming category)
+$processor->addFilter(function ($row) {
+    return (
+        $row['is_featured'] === 'Y' &&
+        $row['category'] === 'Gaming'
+    );
+}, '__group__');
+
+// 5. Sort and paginate
+$processor
+    ->addSortBy('views', 'desc')
+    ->addSortBy('id', 'asc')
+    ->setLimit(10)
+    ->setOffset(0);
+
+// 6. Group by category
+$grouped = $processor->groupBy('category');
+echo "\nGrouped by category:\n";
+print_r($grouped);
+
+// 7. Output processed data as array
+echo "\nProcessed array:\n";
+print_r($processor->toArray());
+
+// 8. Output as JSON
+// echo $processor->toJson();
+
+// 9. Output as CSV
+// echo $processor->toCsv();
+
+// 10. Array utility examples
+
+echo "\nCount: " . $processor->count() . "\n";
+echo "First: " . json_encode($processor->first()) . "\n";
+echo "Last: " . json_encode($processor->last()) . "\n";
+echo "Random: " . json_encode($processor->random()) . "\n";
+echo "Reverse: " . json_encode($processor->reverse()) . "\n";
+echo "Shuffle: " . json_encode($processor->shuffle()) . "\n";
+echo "Pluck titles: " . json_encode($processor->pluck('title')) . "\n";
+echo "Filter (view_count > 1000): " . json_encode($processor->filter(function($row) {
+    return $row['view_count'] > 1000;
+})) . "\n";
+echo "Map (double view_count): " . json_encode($processor->map(function($row) {
+    $row['view_count'] = $row['view_count'] * 2;
+    return $row;
+})) . "\n";
+echo "Sum view_count: " . $processor->sum('view_count') . "\n";
+echo "Avg view_count: " . $processor->avg('view_count') . "\n";
+echo "Min view_count: " . $processor->min('view_count') . "\n";
+echo "Max view_count: " . $processor->max('view_count') . "\n";
+
+echo "\nLog:\n";
+print_r($processor->getLog());
