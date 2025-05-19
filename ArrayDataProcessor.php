@@ -37,7 +37,14 @@ class ArrayDataProcessor
 
     /**
      * Constructor
-     * @param array $data
+     *
+     * Initializes the processor with the provided data array or object. Converts objects to arrays recursively.
+     *
+     * @param array|object $data The input data (array of associative arrays or objects).
+     * @throws \InvalidArgumentException If data is not an array or object.
+     *
+     * @example
+     *   $processor = new ArrayDataProcessor($data);
      */
     public function __construct($data)
     {
@@ -53,6 +60,15 @@ class ArrayDataProcessor
         $this->data = $data;
     }
 
+    /**
+     * Recursively convert an object to an array.
+     *
+     * @param object|array $obj The object or array to convert.
+     * @return array The resulting array.
+     *
+     * @example
+     *   $arr = $this->objectToArray($obj);
+     */
     protected function objectToArray($obj)
     {
         if (is_array($obj)) {
@@ -65,8 +81,12 @@ class ArrayDataProcessor
     }
 
     /**
-     * Get the last error message
-     * @return string|null
+     * Get the last error message encountered by the processor.
+     *
+     * @return string|null The last error message, or null if none.
+     *
+     * @example
+     *   $error = $processor->getLastError();
      */
     public function getLastError()
     {
@@ -74,10 +94,15 @@ class ArrayDataProcessor
     }
 
     /**
-     * Set the type cast for a field
-     * @param string $field
-     * @param string|callable $type
-     * @return $this|false
+     * Set the type cast for a field. Supports built-in types (int, float, string, bool, json, date, datetime, enum) or a closure.
+     *
+     * @param string $field The field name (dot notation supported).
+     * @param string|callable $type The type or closure to use for casting.
+     * @return $this|false Returns $this for chaining or false on error.
+     *
+     * @example
+     *   $processor->setFieldType('created_at', 'datetime');
+     *   $processor->setFieldType('amount', function($v) { return $v / 100; });
      */
     public function setFieldType($field, $type)
     {
@@ -91,10 +116,14 @@ class ArrayDataProcessor
     }
 
     /**
-     * Set an alias for a field
-     * @param string $field
-     * @param string $alias
-     * @return $this|false
+     * Set an alias for a field. The alias will be used as the output key.
+     *
+     * @param string $field The original field name (dot notation supported).
+     * @param string $alias The alias to use in output.
+     * @return $this|false Returns $this for chaining or false on error.
+     *
+     * @example
+     *   $processor->setFieldAlias('created_at', 'published_at');
      */
     public function setFieldAlias($field, $alias)
     {
@@ -108,9 +137,13 @@ class ArrayDataProcessor
     }
 
     /**
-     * Set the output fields (supports dot notation for nested fields)
-     * @param array $fields
-     * @return $this|false
+     * Set the output fields (supports dot notation for nested fields).
+     *
+     * @param array $fields List of fields to include in output.
+     * @return $this|false Returns $this for chaining or false on error.
+     *
+     * @example
+     *   $processor->setFields(['id', 'name', 'details.platform']);
      */
     public function setFields($fields)
     {
@@ -124,9 +157,16 @@ class ArrayDataProcessor
     }
 
     /**
-     * Add additional fields to output
-     * @param array $keys
-     * @return $this
+     * Add additional fields to the output selection. This allows you to dynamically include more fields
+     * in the result set after initial field selection. Useful for extending the output without resetting fields.
+     *
+     * @param array $keys Array of field names to add to the output (supports dot notation for nested fields).
+     * @return $this Returns the current instance for method chaining.
+     *
+     * @example
+     *   $processor->setFields(['id', 'name']);
+     *   $processor->selectKeys(['email', 'profile.age']);
+     *   // Output will now include: id, name, email, profile.age
      */
     public function selectKeys($keys)
     {
@@ -135,9 +175,19 @@ class ArrayDataProcessor
     }
 
     /**
-     * Set multiple filters at once
-     * @param array $filterDefinitions
-     * @return $this
+     * Set multiple filters at once using an array of filter definitions. Each filter can specify a type
+     * (e.g., equals, greaterThan, in, like, etc.) and a value. This is a convenient way to apply multiple
+     * field-based filters in a single call.
+     *
+     * @param array $filterDefinitions Associative array of filters, e.g. ['status' => ['type' => 'equals', 'value' => 'active']]
+     * @return $this Returns the current instance for method chaining.
+     *
+     * @example
+     *   $processor->setFilters([
+     *     'status' => ['type' => 'equals', 'value' => 'active'],
+     *     'views' => ['type' => 'greaterThan', 'value' => 100]
+     *   ]);
+     *   // Only records with status 'active' and views > 100 will be included
      */
     public function setFilters($filterDefinitions)
     {
@@ -187,10 +237,14 @@ class ArrayDataProcessor
     }
 
     /**
-     * Add a filter callback
-     * @param callable $callback
-     * @param string|null $name
-     * @return $this
+     * Add a filter callback. Allows for custom filter logic using a closure.
+     *
+     * @param callable $callback The filter function.
+     * @param string|null $name Optional name for the filter.
+     * @return $this Returns the current instance for method chaining.
+     *
+     * @example
+     *   $processor->addFilter(function($row) { return $row['views'] > 1000; });
      */
     public function addFilter($callback, $name = null)
     {
@@ -203,9 +257,13 @@ class ArrayDataProcessor
     }
 
     /**
-     * Remove a filter by name
-     * @param string $name
-     * @return $this
+     * Remove a filter by name.
+     *
+     * @param string $name The filter name.
+     * @return $this Returns the current instance for method chaining.
+     *
+     * @example
+     *   $processor->removeFilter('my_filter');
      */
     public function removeFilter($name)
     {
@@ -214,9 +272,13 @@ class ArrayDataProcessor
     }
 
     /**
-     * Set filter logic (AND/OR)
-     * @param string $logic
-     * @return $this
+     * Set filter logic (AND/OR) for combining multiple filters.
+     *
+     * @param string $logic 'AND' or 'OR'.
+     * @return $this Returns the current instance for method chaining.
+     *
+     * @example
+     *   $processor->setFilterLogic('OR');
      */
     public function setFilterLogic($logic)
     {
@@ -225,9 +287,13 @@ class ArrayDataProcessor
     }
 
     /**
-     * Set all field aliases at once
-     * @param array $aliases
-     * @return $this
+     * Set all field aliases at once using an associative array.
+     *
+     * @param array $aliases Associative array of field => alias.
+     * @return $this Returns the current instance for method chaining.
+     *
+     * @example
+     *   $processor->setAliases(['created_at' => 'published_at']);
      */
     public function setAliases($aliases)
     {
@@ -236,9 +302,13 @@ class ArrayDataProcessor
     }
 
     /**
-     * Set all field casts at once
-     * @param array $casts
-     * @return $this
+     * Set all field casts at once using an associative array.
+     *
+     * @param array $casts Associative array of field => type/callback.
+     * @return $this Returns the current instance for method chaining.
+     *
+     * @example
+     *   $processor->setCasts(['id' => 'int', 'created_at' => 'datetime']);
      */
     public function setCasts($casts)
     {
@@ -247,9 +317,13 @@ class ArrayDataProcessor
     }
 
     /**
-     * Set enum mapping for fields
-     * @param array $map
-     * @return $this
+     * Set enum mapping for fields. Used for 'enum' type casting.
+     *
+     * @param array $map Associative array of field => [value => label, ...].
+     * @return $this Returns the current instance for method chaining.
+     *
+     * @example
+     *   $processor->setEnumMap(['status' => ['1' => 'Active', '0' => 'Inactive']]);
      */
     public function setEnumMap($map)
     {
@@ -258,10 +332,14 @@ class ArrayDataProcessor
     }
 
     /**
-     * Add a sort field (multi-level sorting supported)
-     * @param string $field
-     * @param string $direction
-     * @return $this|false
+     * Add a sort field for multi-level sorting.
+     *
+     * @param string $field The field to sort by.
+     * @param string $direction 'asc' or 'desc'.
+     * @return $this|false Returns $this for chaining or false on error.
+     *
+     * @example
+     *   $processor->addSortBy('created_at', 'desc');
      */
     public function addSortBy($field, $direction = 'asc')
     {
@@ -275,9 +353,13 @@ class ArrayDataProcessor
     }
 
     /**
-     * Set result limit
-     * @param int $limit
-     * @return $this|false
+     * Set result limit for pagination.
+     *
+     * @param int $limit The maximum number of records to return.
+     * @return $this|false Returns $this for chaining or false on error.
+     *
+     * @example
+     *   $processor->setLimit(10);
      */
     public function setLimit($limit)
     {
@@ -291,9 +373,13 @@ class ArrayDataProcessor
     }
 
     /**
-     * Set result offset
-     * @param int $offset
-     * @return $this|false
+     * Set result offset for pagination.
+     *
+     * @param int $offset The number of records to skip.
+     * @return $this|false Returns $this for chaining or false on error.
+     *
+     * @example
+     *   $processor->setOffset(5);
      */
     public function setOffset($offset)
     {
@@ -307,9 +393,20 @@ class ArrayDataProcessor
     }
 
     /**
-     * Apply all filters to data
-     * @param array $data
-     * @return array
+     * Apply all registered filters to the data set.
+     * 
+     * This function processes the data array through all registered filters using the configured logic (AND/OR).
+     * Supports both individual filters and grouped filters. For AND logic, all filters must pass.
+     * For OR logic, at least one filter must pass.
+     *
+     * @param array $data The array of records to filter
+     * @return array The filtered array of records
+     *
+     * @example
+     * $filtered = $this->applyFilters([
+     *     ['id' => 1, 'status' => 'active'],
+     *     ['id' => 2, 'status' => 'inactive']
+     * ]); // Returns only records matching filter conditions
      */
     protected function applyFilters($data)
     {
@@ -337,9 +434,19 @@ class ArrayDataProcessor
     }
 
     /**
-     * Apply multi-level sorting
-     * @param array $data
-     * @return array
+     * Apply multi-level sorting to the data set.
+     * 
+     * This function sorts the data array based on multiple sort fields and directions.
+     * The sorting is performed using the _multiSortCompare function as a comparison callback.
+     *
+     * @param array $data The array of records to sort
+     * @return array The sorted array of records
+     *
+     * @example
+     * $sorted = $this->applySorting([
+     *     ['name' => 'John', 'age' => 25],
+     *     ['name' => 'Jane', 'age' => 30]
+     * ]); // Returns records sorted by configured sort fields
      */
     protected function applySorting($data)
     {
@@ -349,10 +456,22 @@ class ArrayDataProcessor
     }
 
     /**
-     * Multi-level sort comparison
-     * @param array $a
-     * @param array $b
-     * @return int
+     * Compare two records for multi-level sorting.
+     * 
+     * This function compares two records based on multiple sort fields and directions.
+     * It supports ascending and descending order for each field and handles null values.
+     *
+     * @param array $a First record to compare
+     * @param array $b Second record to compare
+     * @return int -1 if $a < $b, 1 if $a > $b, 0 if equal
+     *
+     * @example
+     * // With sort fields configured as:
+     * // [['field' => 'age', 'direction' => 'desc'], ['field' => 'name', 'direction' => 'asc']]
+     * $result = $this->_multiSortCompare(
+     *     ['name' => 'John', 'age' => 25],
+     *     ['name' => 'Jane', 'age' => 30]
+     * ); // Returns 1 because 25 < 30 in descending order
      */
     protected function _multiSortCompare($a, $b)
     {
@@ -369,9 +488,21 @@ class ArrayDataProcessor
     }
 
     /**
-     * Apply pagination (limit/offset)
-     * @param array $data
-     * @return array
+     * Apply pagination to the data set using limit and offset.
+     * 
+     * This function slices the data array based on the configured limit and offset values.
+     * When limit is negative, returns all data. Otherwise returns a subset of records.
+     *
+     * @param array $data The array of records to paginate
+     * @return array The paginated subset of records
+     *
+     * @example
+     * // With limit=2 and offset=1
+     * $paginated = $this->applyPagination([
+     *     ['id' => 1, 'name' => 'John'],
+     *     ['id' => 2, 'name' => 'Jane'],
+     *     ['id' => 3, 'name' => 'Bob']
+     * ]); // Returns [['id' => 2, 'name' => 'Jane'], ['id' => 3, 'name' => 'Bob']]
      */
     protected function applyPagination($data)
     {
@@ -379,11 +510,25 @@ class ArrayDataProcessor
     }
 
     /**
-     * Helper to get nested value by dot notation, supporting arrays/lists and wildcards
-     * Always returns a numerically indexed array for wildcards.
-     * @param array $array
-     * @param string $key
-     * @return mixed|null|array
+     * Get a value from a nested array structure using dot notation.
+     * 
+     * This function traverses a nested array using dot notation and supports wildcards.
+     * It can handle deep nesting, numeric indices, and wildcard (*) patterns.
+     * For wildcard patterns, it always returns a numerically indexed array.
+     *
+     * @param array $array The array to search in
+     * @param string $key The dot notation path (e.g., 'user.addresses.*.city')
+     * @return mixed|null|array The found value(s) or null if not found
+     *
+     * @example
+     * $value = $this->getNestedValue([
+     *     'user' => [
+     *         'addresses' => [
+     *             ['city' => 'New York'],
+     *             ['city' => 'London']
+     *         ]
+     *     ]
+     * ], 'user.addresses.*.city'); // Returns ['New York', 'London']
      */
     protected function getNestedValue($array, $key)
     {
@@ -426,9 +571,19 @@ class ArrayDataProcessor
     }
 
     /**
-     * Cast and alias fields, flatten nested arrays
-     * @param array $data
-     * @return array
+     * Process and transform data by applying type casting and field aliasing.
+     * 
+     * This function handles type casting of fields and field name aliasing for the output.
+     * It also flattens nested arrays and supports JSON field decoding.
+     * When fields are specified, only those fields are included in the output.
+     *
+     * @param array $data The array of records to process
+     * @return array The processed records with cast values and aliased field names
+     *
+     * @example
+     * $processed = $this->castAndAlias([
+     *     ['id' => '1', 'created' => '2023-01-01', 'data' => '{"name":"John"}']
+     * ]); // Returns records with proper types and aliases applied
      */
     protected function castAndAlias($data)
     {
@@ -487,9 +642,17 @@ class ArrayDataProcessor
     }
 
     /**
-     * Check if array is associative
-     * @param array $array
-     * @return bool
+     * Check if an array is associative.
+     * 
+     * This function determines whether the given array uses string keys or non-sequential numeric keys.
+     * An array is considered associative if its keys are not a sequential range from 0 to count-1.
+     *
+     * @param array $array The array to check for associative keys
+     * @return bool True if array is associative, false if sequential numeric
+     *
+     * @example
+     *   $isAssoc = $this->isAssoc(['foo' => 1, 'bar' => 2]); // Returns true
+     *   $isAssoc = $this->isAssoc([1, 2, 3]); // Returns false
      */
     protected function isAssoc($array)
     {
@@ -497,9 +660,17 @@ class ArrayDataProcessor
     }
 
     /**
-     * Check if array is a pure numeric array (not associative)
-     * @param array $array
-     * @return bool
+     * Check if an array is a pure numerically indexed array.
+     *
+     * This function verifies if the given array has consecutive numeric keys starting from 0.
+     * It helps distinguish between associative arrays and pure indexed arrays.
+     *
+     * @param array $array The array to check for pure numeric indexing
+     * @return bool True if array has consecutive numeric keys from 0, false otherwise
+     *
+     * @example
+     *   $isPure = $this->isPureArray([1, 2, 3]); // Returns true
+     *   $isPure = $this->isPureArray(['a' => 1]); // Returns false
      */
     protected function isPureArray($array)
     {
@@ -512,10 +683,21 @@ class ArrayDataProcessor
     }
 
     /**
-     * Flatten and process a row, supporting dot notation and aliases
-     * @param array $row
-     * @param string $prefix
-     * @return array
+     * Flatten and process a nested array row into a single-level associative array.
+     * 
+     * This function converts a nested array structure into a flat array using dot notation.
+     * It applies field aliases and type casting during the flattening process.
+     * Handles both associative arrays and specified field selections.
+     *
+     * @param array $row The row data to flatten and process
+     * @param string $prefix Current key prefix for nested levels (used recursively)
+     * @return array The flattened and processed array
+     *
+     * @example
+     * $flat = $this->flattenAndProcessRow([
+     *     'user' => ['name' => 'John', 'age' => 25],
+     *     'status' => 'active'
+     * ]); // Returns ['user.name' => 'John', 'user.age' => 25, 'status' => 'active']
      */
     protected function flattenAndProcessRow($row, $prefix = '')
     {
@@ -558,11 +740,20 @@ class ArrayDataProcessor
     }
 
     /**
-     * Cast a value to a given type or via callback
-     * @param mixed $value
-     * @param string|callable|null $type
-     * @param string $key
-     * @return mixed
+     * Cast a value to a specified type or transform it using a callback function.
+     * 
+     * This function supports built-in type casting (int, float, string, bool, json, date, datetime, enum)
+     * and custom transformations via callback functions. For enum types, uses the enumMap for value mapping.
+     *
+     * @param mixed $value The value to cast
+     * @param string|callable|null $type The target type or callback function
+     * @param string $key The field key (used for enum mapping)
+     * @return mixed The cast/transformed value
+     *
+     * @example
+     * $cast = $this->castValue('123', 'int'); // Returns 123 (integer)
+     * $cast = $this->castValue('2023-05-19', 'date'); // Returns '2023-05-19'
+     * $cast = $this->castValue('1', 'enum', 'status'); // Returns mapped value from enumMap
      */
     protected function castValue($value, $type, $key = '')
     {
@@ -787,8 +978,13 @@ class ArrayDataProcessor
     }
 
     /**
-     * Get reversed processed data
-     * @return array
+     * Get reversed processed data.
+     * Returns the processed data in reverse order.
+     *
+     * @return array The reversed processed data.
+     *
+     * @example
+     *   $reversed = $processor->reverse();
      */
     public function reverse()
     {
@@ -796,8 +992,13 @@ class ArrayDataProcessor
     }
 
     /**
-     * Get shuffled processed data
-     * @return array
+     * Get shuffled processed data.
+     * Returns the processed data in random order.
+     *
+     * @return array The shuffled processed data.
+     *
+     * @example
+     *   $shuffled = $processor->shuffle();
      */
     public function shuffle()
     {
@@ -807,9 +1008,14 @@ class ArrayDataProcessor
     }
 
     /**
-     * Pluck a single column from processed data
-     * @param string $key
-     * @return array
+     * Pluck a single column from processed data.
+     * Extracts the values of a single column from all processed records.
+     *
+     * @param string $key The field name to pluck (dot notation supported).
+     * @return array Array of values for the specified field.
+     *
+     * @example
+     *   $titles = $processor->pluck('title');
      */
     public function pluck($key)
     {
@@ -822,9 +1028,14 @@ class ArrayDataProcessor
     }
 
     /**
-     * Filter processed data with a callback
-     * @param callable $callback
-     * @return array
+     * Filter processed data with a callback.
+     * Returns all records for which the callback returns true.
+     *
+     * @param callable $callback The filter function. Receives each row as argument.
+     * @return array Array of filtered records.
+     *
+     * @example
+     *   $filtered = $processor->filter(function($row) { return $row['views'] > 1000; });
      */
     public function filter(callable $callback)
     {
@@ -833,9 +1044,14 @@ class ArrayDataProcessor
     }
 
     /**
-     * Map processed data with a callback
-     * @param callable $callback
-     * @return array
+     * Map processed data with a callback.
+     * Applies the callback to each record and returns the results.
+     *
+     * @param callable $callback The map function. Receives each row as argument.
+     * @return array Array of mapped records.
+     *
+     * @example
+     *   $doubled = $processor->map(function($row) { $row['views'] *= 2; return $row; });
      */
     public function map(callable $callback)
     {
@@ -844,9 +1060,14 @@ class ArrayDataProcessor
     }
 
     /**
-     * Sum a column in processed data
-     * @param string $key
-     * @return float|int
+     * Sum a column in processed data.
+     * Calculates the sum of the specified field for all processed records.
+     *
+     * @param string $key The field name to sum.
+     * @return float|int The sum of the field values.
+     *
+     * @example
+     *   $total = $processor->sum('views');
      */
     public function sum($key)
     {
@@ -859,9 +1080,14 @@ class ArrayDataProcessor
     }
 
     /**
-     * Average of a column in processed data
-     * @param string $key
-     * @return float|int
+     * Average of a column in processed data.
+     * Calculates the average value of the specified field for all processed records.
+     *
+     * @param string $key The field name to average.
+     * @return float|int The average value.
+     *
+     * @example
+     *   $average = $processor->avg('views');
      */
     public function avg($key)
     {
@@ -871,9 +1097,14 @@ class ArrayDataProcessor
     }
 
     /**
-     * Minimum value of a column in processed data
-     * @param string $key
-     * @return mixed
+     * Minimum value of a column in processed data.
+     * Finds the minimum value of the specified field among all processed records.
+     *
+     * @param string $key The field name to check.
+     * @return mixed The minimum value, or null if no values.
+     *
+     * @example
+     *   $min = $processor->min('views');
      */
     public function min($key)
     {
@@ -886,9 +1117,14 @@ class ArrayDataProcessor
     }
 
     /**
-     * Maximum value of a column in processed data
-     * @param string $key
-     * @return mixed
+     * Maximum value of a column in processed data.
+     * Finds the maximum value of the specified field among all processed records.
+     *
+     * @param string $key The field name to check.
+     * @return mixed The maximum value, or null if no values.
+     *
+     * @example
+     *   $max = $processor->max('views');
      */
     public function max($key)
     {
@@ -902,15 +1138,18 @@ class ArrayDataProcessor
 
     /**
      * Expand each record by a nested list, duplicating parent fields and mapping nested fields to top-level fields.
-     * Example: expandByNestedList('accents', [
-     *   'accent_name' => 'accent_name',
-     *   'accent_id' => 'id',
-     *   'preview_url' => 'preview_url'
-     * ])
+     * Useful for flattening nested arrays (e.g., accents) into a flat structure for export or further processing.
      *
-     * @param string $listKey The key of the nested list to expand (e.g., 'accents')
-     * @param array $mapping Mapping of output field => nested field (e.g., ['accent_name' => 'accent_name', ...])
-     * @return $this
+     * @param string $listKey The key of the nested list to expand (e.g., 'accents').
+     * @param array $mapping Mapping of output field => nested field (e.g., ['accent_name' => 'accent_name', ...]).
+     * @return $this Returns the current instance for method chaining.
+     *
+     * @example
+     *   $processor->expandByNestedList('accents', [
+     *     'accent_name' => 'accent_name',
+     *     'accent_id' => 'id',
+     *     'preview_url' => 'preview_url'
+     *   ]);
      */
     public function expandByNestedList($listKey, $mapping)
     {
@@ -932,3 +1171,6 @@ class ArrayDataProcessor
         return $this;
     }
 }
+
+// --- Comprehensive Example Usage ---
+
