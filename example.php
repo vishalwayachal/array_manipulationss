@@ -1,10 +1,6 @@
 <?php
 require_once 'ArrayDataProcessor.php';
 
-
-<?php
-require_once 'ArrayDataProcessor.php';
-
 // --- Example 1: setFields ---
 $data = array(
     array('id' => 1, 'name' => 'Alice', 'age' => 30),
