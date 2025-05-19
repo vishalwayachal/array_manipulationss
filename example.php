@@ -200,6 +200,7 @@ print_r($processor->getLog());
 
 // --- Example 4: Using custom filter callbacks and OR logic ---
 $processor->reset();
+$processor->setFieldAlias('views', 'view_count'); // Re-apply alias after reset
 $processor->setFields(['id', 'title', 'view_count', 'category']);
 $processor->addFilter(function ($row) {
     // Custom filter: include if view_count > 1500 or category is Technology
@@ -211,7 +212,6 @@ print_r($processor->toArray());
 
 // --- Example 5: Enum mapping for status field ---
 $processor->reset();
-$processor->setFields(['id', 'title', 'status']);
 $processor->setEnumMap([
     'status' => [
         'inactive' => 'Inactive',
@@ -221,6 +221,7 @@ $processor->setEnumMap([
     ]
 ]);
 $processor->setFieldType('status', 'enum');
+$processor->setFields(['id', 'title', 'status']);
 echo "\n[Example 5] Enum mapping for status field:\n";
 print_r($processor->toArray());
 
@@ -238,12 +239,14 @@ print_r($grouped);
 
 // --- Example 7: Export CSV with custom delimiter and enclosure ---
 $processor->reset();
+$processor->setFieldAlias('views', 'view_count'); // Re-apply alias after reset
 $processor->setFields(['id', 'title', 'view_count']);
 echo "\n[Example 7] CSV export with semicolon delimiter and single quote enclosure:\n";
 echo $processor->toCsv(';', "'") . "\n";
 
 // --- Example 8: Get CSV headers only ---
 $processor->reset();
+$processor->setFieldAlias('views', 'view_count'); // Re-apply alias after reset
 $processor->setFields(['id', 'title', 'view_count']);
 echo "\n[Example 8] CSV headers only:\n";
 print_r($processor->getCsvHeaders());
