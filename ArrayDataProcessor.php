@@ -41,7 +41,27 @@ class ArrayDataProcessor
      */
     public function __construct($data)
     {
+        if (is_object($data)) {
+            $data = [$this->objectToArray($data)];
+        } elseif (is_array($data)) {
+            $data = array_map(function ($item) {
+                return is_object($item) ? $this->objectToArray($item) : $item;
+            }, $data);
+        } else {
+            throw new \InvalidArgumentException('Data must be an array or object');
+        }
         $this->data = $data;
+    }
+
+    protected function objectToArray($obj)
+    {
+        if (is_array($obj)) {
+            return array_map([$this, 'objectToArray'], $obj);
+        } elseif (is_object($obj)) {
+            return array_map([$this, 'objectToArray'], get_object_vars($obj));
+        } else {
+            return $obj;
+        }
     }
 
     /**
@@ -359,10 +379,11 @@ class ArrayDataProcessor
     }
 
     /**
-     * Helper to get nested value by dot notation
+     * Helper to get nested value by dot notation, supporting arrays/lists and wildcards
+     * Always returns a numerically indexed array for wildcards.
      * @param array $array
      * @param string $key
-     * @return mixed|null
+     * @return mixed|null|array
      */
     protected function getNestedValue($array, $key)
     {
@@ -371,8 +392,31 @@ class ArrayDataProcessor
         }
         $parts = explode('.', $key);
         $value = $array;
-        foreach ($parts as $part) {
-            if (is_array($value) && array_key_exists($part, $value)) {
+        foreach ($parts as $i => $part) {
+            if ($part === '*') {
+                // Wildcard: collect all values at this level
+                if (!is_array($value)) return null;
+                $results = [];
+                foreach ($value as $item) {
+                    $subkey = implode('.', array_slice($parts, $i + 1));
+                    $res = $this->getNestedValue($item, $subkey);
+                    if (is_array($res) && $subkey && strpos($subkey, '*') !== false) {
+                        // Flatten nested arrays from deeper wildcards
+                        foreach ($res as $r) $results[] = $r;
+                    } elseif ($res !== null) {
+                        $results[] = $res;
+                    }
+                }
+                // Ensure pure numeric array
+                return array_values($results);
+            } elseif (is_numeric($part)) {
+                // Numeric index for list
+                if (is_array($value) && isset($value[(int)$part])) {
+                    $value = $value[(int)$part];
+                } else {
+                    return null;
+                }
+            } elseif (is_array($value) && array_key_exists($part, $value)) {
                 $value = $value[$part];
             } else {
                 return null;
@@ -391,13 +435,11 @@ class ArrayDataProcessor
         if (!empty($this->fields) || !empty($this->aliases)) {
             return array_map(function ($item) {
                 $projected = [];
-                // Pre-decode any json-cast parents for dot notation fields
                 $decodedParents = [];
                 if (!empty($this->fields)) {
                     foreach ($this->fields as $field) {
                         $lookupField = array_search($field, $this->aliases, true);
                         $lookupField = $lookupField !== false ? $lookupField : $field;
-                        // If dot notation and parent is json-cast, decode parent
                         if (strpos($lookupField, '.') !== false) {
                             $parts = explode('.', $lookupField);
                             $parent = $parts[0];
@@ -413,6 +455,10 @@ class ArrayDataProcessor
                         $value = $this->getNestedValue($item, $lookupField);
                         $cast = isset($this->casts[$lookupField]) ? $this->casts[$lookupField] : null;
                         $value = $this->castValue($value, $cast, $lookupField);
+                        // Ensure pure array for numeric-keyed arrays
+                        if (is_array($value) && $this->isPureArray($value)) {
+                            $value = array_values($value);
+                        }
                         $outputKey = $field;
                         $projected[$outputKey] = $value;
                     }
@@ -420,6 +466,9 @@ class ArrayDataProcessor
                     foreach ($item as $key => $value) {
                         $cast = isset($this->casts[$key]) ? $this->casts[$key] : null;
                         $value = $this->castValue($value, $cast, $key);
+                        if (is_array($value) && $this->isPureArray($value)) {
+                            $value = array_values($value);
+                        }
                         $outputKey = isset($this->aliases[$key]) ? $this->aliases[$key] : $key;
                         $projected[$outputKey] = $value;
                     }
@@ -427,7 +476,6 @@ class ArrayDataProcessor
                 return $projected;
             }, $data);
         }
-        // Default: flatten and process as before
         $out = array();
         foreach ($data as $row) {
             $flattened = $this->flattenAndProcessRow($row);
@@ -436,6 +484,31 @@ class ArrayDataProcessor
             }
         }
         return $out;
+    }
+
+    /**
+     * Check if array is associative
+     * @param array $array
+     * @return bool
+     */
+    protected function isAssoc($array)
+    {
+        return array_keys($array) !== range(0, count($array) - 1);
+    }
+
+    /**
+     * Check if array is a pure numeric array (not associative)
+     * @param array $array
+     * @return bool
+     */
+    protected function isPureArray($array)
+    {
+        if (!is_array($array)) return false;
+        $i = 0;
+        foreach ($array as $k => $v) {
+            if ($k !== $i++) return false;
+        }
+        return true;
     }
 
     /**
@@ -482,16 +555,6 @@ class ArrayDataProcessor
             return $out;
         }
         return $result;
-    }
-
-    /**
-     * Check if array is associative
-     * @param array $array
-     * @return bool
-     */
-    protected function isAssoc($array)
-    {
-        return array_keys($array) !== range(0, count($array) - 1);
     }
 
     /**
@@ -554,7 +617,8 @@ class ArrayDataProcessor
     {
         $data = $this->process();
         $this->log[] = 'Output as array';
-        return $data;
+        // Ensure pure numeric array for top-level result
+        return array_values($data);
     }
 
     /**
@@ -835,175 +899,36 @@ class ArrayDataProcessor
         }
         return empty($values) ? null : max($values);
     }
+
+    /**
+     * Expand each record by a nested list, duplicating parent fields and mapping nested fields to top-level fields.
+     * Example: expandByNestedList('accents', [
+     *   'accent_name' => 'accent_name',
+     *   'accent_id' => 'id',
+     *   'preview_url' => 'preview_url'
+     * ])
+     *
+     * @param string $listKey The key of the nested list to expand (e.g., 'accents')
+     * @param array $mapping Mapping of output field => nested field (e.g., ['accent_name' => 'accent_name', ...])
+     * @return $this
+     */
+    public function expandByNestedList($listKey, $mapping)
+    {
+        $expanded = [];
+        foreach ($this->data as $row) {
+            if (!isset($row[$listKey]) || !is_array($row[$listKey]) || empty($row[$listKey])) {
+                continue; // skip records with no accents
+            }
+            foreach ($row[$listKey] as $nested) {
+                $newRow = $row;
+                unset($newRow[$listKey]);
+                foreach ($mapping as $outKey => $nestedKey) {
+                    $newRow[$outKey] = isset($nested[$nestedKey]) ? $nested[$nestedKey] : null;
+                }
+                $expanded[] = $newRow;
+            }
+        }
+        $this->data = $expanded;
+        return $this;
+    }
 }
-
-// --- Comprehensive Example Usage ---
-
-// Example data array with various edge cases
-$data = [
-    [
-        'id' => '1',
-        'title' => 'Pro Gaming',
-        'category' => 'Gaming',
-        'is_featured' => 'Y',
-        'views' => '1200',
-        'created_at' => '2025-05-16 08:00:00',
-        'tags' => 'fun,live,hd',
-        'status' => '1',
-        'rating' => '4.5',
-        'details' => json_encode([
-            'platform' => 'Twitch',
-            'quality' => 'HD',
-            'meta' => ['lang' => 'en']
-        ]),
-        'metadata' => json_encode(['foo' => 'bar']),
-        'viewer_count' => '1000',
-    ],
-    [
-        'id' => '2',
-        'title' => 'Chill Stream',
-        'category' => 'Gaming',
-        'is_featured' => 'Y',
-        'views' => '800',
-        'created_at' => '2025-05-10 10:30:00',
-        'tags' => ['relax', 'music'],
-        'status' => '0',
-        'rating' => '3.8',
-        'details' => json_encode([
-            'platform' => 'YouTube',
-            'quality' => 'SD',
-            'meta' => ['lang' => 'fr']
-        ]),
-        'metadata' => json_encode(['foo' => 'baz']),
-        'viewer_count' => '500',
-    ],
-    [
-        'id' => '3',
-        'title' => 'Cooking Show',
-        'category' => 'Lifestyle',
-        'is_featured' => 'N',
-        'views' => '1500',
-        'created_at' => '2025-05-12 14:00:00',
-        'tags' => '',
-        'status' => '2',
-        'rating' => '4.9',
-        'details' => json_encode([
-            'platform' => 'Facebook',
-            'quality' => 'HD',
-            'meta' => ['lang' => 'es']
-        ]),
-        'metadata' => json_encode(['foo' => 'qux']),
-        'viewer_count' => '2000',
-    ],
-    [
-        'id' => '4',
-        'title' => 'Tech Review',
-        'category' => 'Technology',
-        'is_featured' => 'Y',
-        'views' => '2000',
-        'created_at' => '2025-05-15 09:00:00',
-        'tags' => null,
-        'status' => '3',
-        'rating' => '4.2',
-        'details' => json_encode([
-            'platform' => 'Twitch',
-            'quality' => '4K',
-            'meta' => ['lang' => 'en']
-        ]),
-        'metadata' => json_encode(['foo' => 'zap']),
-        'viewer_count' => '1500',
-    ],
-];
-
-// 1. Create the processor
-$processor = new ArrayDataProcessor($data);
-
-// 2. Configure field types and aliases (including closures and edge cases)
-$processor
-    ->setFieldType('id', 'int')
-    ->setFieldType('views', 'int')
-    ->setFieldType('created_at', function ($v) { return (new DateTime($v))->format('Y-m-d H:i'); })
-    ->setFieldType('details', 'json')
-    ->setFieldType('details.platform', 'string') // nested field
-    ->setFieldType('tags', function ($v) {
-        if (is_array($v)) return array_map('trim', $v);
-        if (is_string($v) && strlen($v)) return array_map('trim', explode(',', $v));
-        return [];
-    })
-    ->setFieldType('status', function ($v) {
-        $map = ['0' => 'inactive', '1' => 'active', '2' => 'suspended', '3' => 'pending'];
-        return $map[$v] ?? 'unknown';
-    })
-    ->setFieldType('rating', function ($v) { return number_format((float)$v, 2, '.', ''); })
-    ->setFieldType('metadata', function ($v) {
-        $meta = json_decode($v, true);
-        $meta['processed_at'] = date('Y-m-d H:i:s');
-        return $meta;
-    })
-    ->setFieldType('viewer_count', function ($v) { return (int)$v; })
-    ->setFieldAlias('views', 'view_count')
-    ->setFieldAlias('created_at', 'published_at')
-    ->setFieldAlias('details.platform', 'platform')
-    ->setFieldAlias('viewer_count', 'audience');
-
-// 3. Select only specific fields for output (including nested/dot notation and aliases)
-$processor->setFields([
-    'id', 'title', 'view_count', 'category', 'published_at', 'platform', 'tags', 'status', 'rating', 'audience', 'metadata',
-]);
-
-// 4. Add filters (AND/OR logic, edge cases)
-$processor->setFilters([
-    'is_featured' => ['type' => 'equals', 'value' => 'Y'],
-    'category' => ['type' => 'in', 'value' => ['Gaming', 'Technology']],
-]);
-$processor->setFilterLogic('AND');
-
-// 5. Sort and paginate
-$processor
-    ->addSortBy('view_count', 'desc')
-    ->addSortBy('id', 'asc')
-    ->setLimit(3)
-    ->setOffset(0);
-
-// 6. Group by a nested field (dot notation)
-$groupedByPlatform = $processor->groupBy('platform');
-echo "\nGrouped by platform (dot notation):\n";
-print_r($groupedByPlatform);
-
-// 7. Output processed data as array
-echo "\nProcessed array:\n";
-print_r($processor->toArray());
-
-// 8. Output as JSON
-echo "\nProcessed JSON:\n";
-echo $processor->toJson(JSON_PRETTY_PRINT) . "\n";
-
-// 9. Output as CSV
-echo "\nProcessed CSV:\n";
-echo $processor->toCsv() . "\n";
-
-// 10. Array utility examples
-
-echo "\nCount: " . $processor->count() . "\n";
-echo "First: " . json_encode($processor->first()) . "\n";
-echo "Last: " . json_encode($processor->last()) . "\n";
-echo "Random: " . json_encode($processor->random()) . "\n";
-echo "Reverse: " . json_encode($processor->reverse()) . "\n";
-echo "Shuffle: " . json_encode($processor->shuffle()) . "\n";
-echo "Pluck titles: " . json_encode($processor->pluck('title')) . "\n";
-echo "Filter (view_count > 1000): " . json_encode($processor->filter(function ($row) {
-    return $row['view_count'] > 1000;
-})) . "\n";
-echo "Map (double view_count): " . json_encode($processor->map(function ($row) {
-    $row['view_count'] = $row['view_count'] * 2;
-    return $row;
-})) . "\n";
-echo "Sum view_count: " . $processor->sum('view_count') . "\n";
-echo "Avg view_count: " . $processor->avg('view_count') . "\n";
-echo "Min view_count: " . $processor->min('view_count') . "\n";
-echo "Max view_count: " . $processor->max('view_count') . "\n";
-
-echo "\nLog of operations:\n";
-print_r($processor->getLog());
-
-// --- End of Comprehensive Example Usage ---
