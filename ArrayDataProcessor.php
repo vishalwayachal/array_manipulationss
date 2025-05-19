@@ -1,4 +1,5 @@
 <?php
+
 /**
  * ArrayDataProcessor
  *
@@ -14,7 +15,7 @@
  * - CSV/JSON export
  * - Logging of all operations
  *
- * @author  Your Name
+ * @author  VISHAL WAYACHAL
  * @license MIT
  * @version 1.0.0
  */
@@ -32,6 +33,7 @@ class ArrayDataProcessor
     protected $fields = [];
     protected $log = [];
     protected $enumMap = [];
+    protected $lastError = null; // Store last error message
 
     /**
      * Constructor
@@ -43,13 +45,27 @@ class ArrayDataProcessor
     }
 
     /**
+     * Get the last error message
+     * @return string|null
+     */
+    public function getLastError()
+    {
+        return $this->lastError;
+    }
+
+    /**
      * Set the type cast for a field
      * @param string $field
      * @param string|callable $type
-     * @return $this
+     * @return $this|false
      */
     public function setFieldType($field, $type)
     {
+        if (!is_string($field) || $field === '') {
+            $this->lastError = 'Invalid field name for setFieldType.';
+            $this->log[] = $this->lastError;
+            return false;
+        }
         $this->casts[$field] = $type;
         return $this;
     }
@@ -58,10 +74,15 @@ class ArrayDataProcessor
      * Set an alias for a field
      * @param string $field
      * @param string $alias
-     * @return $this
+     * @return $this|false
      */
     public function setFieldAlias($field, $alias)
     {
+        if (!is_string($field) || $field === '' || !is_string($alias) || $alias === '') {
+            $this->lastError = 'Invalid field or alias for setFieldAlias.';
+            $this->log[] = $this->lastError;
+            return false;
+        }
         $this->aliases[$field] = $alias;
         return $this;
     }
@@ -69,10 +90,15 @@ class ArrayDataProcessor
     /**
      * Set the output fields (supports dot notation for nested fields)
      * @param array $fields
-     * @return $this
+     * @return $this|false
      */
     public function setFields($fields)
     {
+        if (!is_array($fields)) {
+            $this->lastError = 'Fields must be an array in setFields.';
+            $this->log[] = $this->lastError;
+            return false;
+        }
         $this->fields = $fields;
         return $this;
     }
@@ -100,23 +126,40 @@ class ArrayDataProcessor
                 $value = isset($row[$field]) ? $row[$field] : null;
                 $expected = $rule['value'];
                 switch ($rule['type']) {
-                    case 'equals': return $value == $expected;
-                    case 'notEquals': return $value != $expected;
-                    case 'greaterThan': return $value > $expected;
-                    case 'greaterThanOrEqual': return $value >= $expected;
-                    case 'lessThan': return $value < $expected;
-                    case 'lessThanOrEqual': return $value <= $expected;
-                    case 'in': return in_array($value, (array) $expected);
-                    case 'notIn': return !in_array($value, (array) $expected);
-                    case 'like': return strpos((string) $value, (string) $expected) !== false;
-                    case 'startsWith': return strpos((string) $value, (string) $expected) === 0;
-                    case 'endsWith': return substr((string) $value, -strlen((string) $expected)) === (string) $expected;
-                    case 'between': return $value >= $expected[0] && $value <= $expected[1];
-                    case 'null': return is_null($value);
-                    case 'notNull': return !is_null($value);
-                    case 'empty': return empty($value);
-                    case 'notEmpty': return !empty($value);
-                    default: return true;
+                    case 'equals':
+                        return $value == $expected;
+                    case 'notEquals':
+                        return $value != $expected;
+                    case 'greaterThan':
+                        return $value > $expected;
+                    case 'greaterThanOrEqual':
+                        return $value >= $expected;
+                    case 'lessThan':
+                        return $value < $expected;
+                    case 'lessThanOrEqual':
+                        return $value <= $expected;
+                    case 'in':
+                        return in_array($value, (array) $expected);
+                    case 'notIn':
+                        return !in_array($value, (array) $expected);
+                    case 'like':
+                        return strpos((string) $value, (string) $expected) !== false;
+                    case 'startsWith':
+                        return strpos((string) $value, (string) $expected) === 0;
+                    case 'endsWith':
+                        return substr((string) $value, -strlen((string) $expected)) === (string) $expected;
+                    case 'between':
+                        return $value >= $expected[0] && $value <= $expected[1];
+                    case 'null':
+                        return is_null($value);
+                    case 'notNull':
+                        return !is_null($value);
+                    case 'empty':
+                        return empty($value);
+                    case 'notEmpty':
+                        return !empty($value);
+                    default:
+                        return true;
                 }
             }, $field);
         }
@@ -198,10 +241,15 @@ class ArrayDataProcessor
      * Add a sort field (multi-level sorting supported)
      * @param string $field
      * @param string $direction
-     * @return $this
+     * @return $this|false
      */
     public function addSortBy($field, $direction = 'asc')
     {
+        if (!is_string($field) || $field === '' || !in_array(strtolower($direction), ['asc', 'desc'])) {
+            $this->lastError = 'Invalid field or direction for addSortBy.';
+            $this->log[] = $this->lastError;
+            return false;
+        }
         $this->sortFields[] = ['field' => $field, 'direction' => strtolower($direction)];
         return $this;
     }
@@ -209,10 +257,15 @@ class ArrayDataProcessor
     /**
      * Set result limit
      * @param int $limit
-     * @return $this
+     * @return $this|false
      */
     public function setLimit($limit)
     {
+        if (!is_int($limit) || $limit < 0) {
+            $this->lastError = 'Limit must be a non-negative integer.';
+            $this->log[] = $this->lastError;
+            return false;
+        }
         $this->limit = $limit;
         return $this;
     }
@@ -220,10 +273,15 @@ class ArrayDataProcessor
     /**
      * Set result offset
      * @param int $offset
-     * @return $this
+     * @return $this|false
      */
     public function setOffset($offset)
     {
+        if (!is_int($offset) || $offset < 0) {
+            $this->lastError = 'Offset must be a non-negative integer.';
+            $this->log[] = $this->lastError;
+            return false;
+        }
         $this->offset = $offset;
         return $this;
     }
@@ -237,7 +295,7 @@ class ArrayDataProcessor
     {
         if (empty($this->filters)) return $data;
         if (isset($this->filters['__group__'])) {
-            $filtered = array_filter($data, function($row) {
+            $filtered = array_filter($data, function ($row) {
                 return call_user_func($this->filters['__group__'], $row);
             });
             $this->log[] = "Applied grouped filter";
@@ -301,12 +359,75 @@ class ArrayDataProcessor
     }
 
     /**
+     * Helper to get nested value by dot notation
+     * @param array $array
+     * @param string $key
+     * @return mixed|null
+     */
+    protected function getNestedValue($array, $key)
+    {
+        if (strpos($key, '.') === false) {
+            return isset($array[$key]) ? $array[$key] : null;
+        }
+        $parts = explode('.', $key);
+        $value = $array;
+        foreach ($parts as $part) {
+            if (is_array($value) && array_key_exists($part, $value)) {
+                $value = $value[$part];
+            } else {
+                return null;
+            }
+        }
+        return $value;
+    }
+
+    /**
      * Cast and alias fields, flatten nested arrays
      * @param array $data
      * @return array
      */
     protected function castAndAlias($data)
     {
+        if (!empty($this->fields) || !empty($this->aliases)) {
+            return array_map(function ($item) {
+                $projected = [];
+                // Pre-decode any json-cast parents for dot notation fields
+                $decodedParents = [];
+                if (!empty($this->fields)) {
+                    foreach ($this->fields as $field) {
+                        $lookupField = array_search($field, $this->aliases, true);
+                        $lookupField = $lookupField !== false ? $lookupField : $field;
+                        // If dot notation and parent is json-cast, decode parent
+                        if (strpos($lookupField, '.') !== false) {
+                            $parts = explode('.', $lookupField);
+                            $parent = $parts[0];
+                            if (isset($this->casts[$parent]) && $this->casts[$parent] === 'json' && isset($item[$parent]) && is_string($item[$parent]) && !isset($decodedParents[$parent])) {
+                                $item[$parent] = json_decode($item[$parent], true);
+                                $decodedParents[$parent] = true;
+                            }
+                        }
+                    }
+                    foreach ($this->fields as $field) {
+                        $lookupField = array_search($field, $this->aliases, true);
+                        $lookupField = $lookupField !== false ? $lookupField : $field;
+                        $value = $this->getNestedValue($item, $lookupField);
+                        $cast = isset($this->casts[$lookupField]) ? $this->casts[$lookupField] : null;
+                        $value = $this->castValue($value, $cast, $lookupField);
+                        $outputKey = $field;
+                        $projected[$outputKey] = $value;
+                    }
+                } else {
+                    foreach ($item as $key => $value) {
+                        $cast = isset($this->casts[$key]) ? $this->casts[$key] : null;
+                        $value = $this->castValue($value, $cast, $key);
+                        $outputKey = isset($this->aliases[$key]) ? $this->aliases[$key] : $key;
+                        $projected[$outputKey] = $value;
+                    }
+                }
+                return $projected;
+            }, $data);
+        }
+        // Default: flatten and process as before
         $out = array();
         foreach ($data as $row) {
             $flattened = $this->flattenAndProcessRow($row);
@@ -385,16 +506,25 @@ class ArrayDataProcessor
         if (!$type) return $value;
         if (is_callable($type)) return $type($value);
         switch ($type) {
-            case 'int': return (int)$value;
-            case 'float': return (float)$value;
-            case 'string': return (string)$value;
-            case 'bool': return (bool)$value;
-            case 'json': return json_decode($value, true);
-            case 'date': return date('Y-m-d', strtotime($value));
+            case 'int':
+                return (int)$value;
+            case 'float':
+                return (float)$value;
+            case 'string':
+                return (string)$value;
+            case 'bool':
+                return (bool)$value;
+            case 'json':
+                return json_decode($value, true);
+            case 'date':
+                return date('Y-m-d', strtotime($value));
             case 'datetime':
-            case 'timestamp': return date('Y-m-d H:i:s', strtotime($value));
-            case 'enum': return isset($this->enumMap[$key][$value]) ? $this->enumMap[$key][$value] : $value;
-            default: return $value;
+            case 'timestamp':
+                return date('Y-m-d H:i:s', strtotime($value));
+            case 'enum':
+                return isset($this->enumMap[$key][$value]) ? $this->enumMap[$key][$value] : $value;
+            default:
+                return $value;
         }
     }
 
@@ -453,7 +583,7 @@ class ArrayDataProcessor
         $headers = array_keys($data[0]);
         $output[] = implode($delimiter, $headers);
         foreach ($data as $row) {
-            $output[] = implode($delimiter, array_map(function($v) use ($enclosure) {
+            $output[] = implode($delimiter, array_map(function ($v) use ($enclosure) {
                 return $enclosure . str_replace($enclosure, $enclosure . $enclosure, $v) . $enclosure;
             }, $row));
         }
@@ -503,10 +633,15 @@ class ArrayDataProcessor
     /**
      * Group processed data by a key (supports dot notation)
      * @param string $key
-     * @return array
+     * @return array|false
      */
     public function groupBy($key)
     {
+        if (!is_string($key) || $key === '') {
+            $this->lastError = 'Invalid key for groupBy.';
+            $this->log[] = $this->lastError;
+            return false;
+        }
         $data = $this->process();
         $grouped = array();
         foreach ($data as $row) {
@@ -563,7 +698,7 @@ class ArrayDataProcessor
     public function last()
     {
         $data = $this->process();
-        return count($data) ? $data[count($data)-1] : null;
+        return count($data) ? $data[count($data) - 1] : null;
     }
 
     /**
@@ -702,9 +837,9 @@ class ArrayDataProcessor
     }
 }
 
-// --- Example usage ---
+// --- Comprehensive Example Usage ---
 
-// Example data array
+// Example data array with various edge cases
 $data = [
     [
         'id' => '1',
@@ -713,10 +848,16 @@ $data = [
         'is_featured' => 'Y',
         'views' => '1200',
         'created_at' => '2025-05-16 08:00:00',
+        'tags' => 'fun,live,hd',
+        'status' => '1',
+        'rating' => '4.5',
         'details' => json_encode([
             'platform' => 'Twitch',
-            'quality' => 'HD'
-        ])
+            'quality' => 'HD',
+            'meta' => ['lang' => 'en']
+        ]),
+        'metadata' => json_encode(['foo' => 'bar']),
+        'viewer_count' => '1000',
     ],
     [
         'id' => '2',
@@ -725,22 +866,34 @@ $data = [
         'is_featured' => 'Y',
         'views' => '800',
         'created_at' => '2025-05-10 10:30:00',
+        'tags' => ['relax', 'music'],
+        'status' => '0',
+        'rating' => '3.8',
         'details' => json_encode([
             'platform' => 'YouTube',
-            'quality' => 'SD'
-        ])
+            'quality' => 'SD',
+            'meta' => ['lang' => 'fr']
+        ]),
+        'metadata' => json_encode(['foo' => 'baz']),
+        'viewer_count' => '500',
     ],
     [
         'id' => '3',
         'title' => 'Cooking Show',
         'category' => 'Lifestyle',
-        'is_featured' => 'Y',
+        'is_featured' => 'N',
         'views' => '1500',
         'created_at' => '2025-05-12 14:00:00',
+        'tags' => '',
+        'status' => '2',
+        'rating' => '4.9',
         'details' => json_encode([
             'platform' => 'Facebook',
-            'quality' => 'HD'
-        ])
+            'quality' => 'HD',
+            'meta' => ['lang' => 'es']
+        ]),
+        'metadata' => json_encode(['foo' => 'qux']),
+        'viewer_count' => '2000',
     ],
     [
         'id' => '4',
@@ -749,57 +902,85 @@ $data = [
         'is_featured' => 'Y',
         'views' => '2000',
         'created_at' => '2025-05-15 09:00:00',
+        'tags' => null,
+        'status' => '3',
+        'rating' => '4.2',
         'details' => json_encode([
             'platform' => 'Twitch',
-            'quality' => '4K'
-        ])
+            'quality' => '4K',
+            'meta' => ['lang' => 'en']
+        ]),
+        'metadata' => json_encode(['foo' => 'zap']),
+        'viewer_count' => '1500',
     ],
 ];
 
 // 1. Create the processor
 $processor = new ArrayDataProcessor($data);
 
-// 2. Configure field types and aliases
+// 2. Configure field types and aliases (including closures and edge cases)
 $processor
     ->setFieldType('id', 'int')
     ->setFieldType('views', 'int')
-    ->setFieldType('created_at', 'datetime')
+    ->setFieldType('created_at', function ($v) { return (new DateTime($v))->format('Y-m-d H:i'); })
     ->setFieldType('details', 'json')
+    ->setFieldType('details.platform', 'string') // nested field
+    ->setFieldType('tags', function ($v) {
+        if (is_array($v)) return array_map('trim', $v);
+        if (is_string($v) && strlen($v)) return array_map('trim', explode(',', $v));
+        return [];
+    })
+    ->setFieldType('status', function ($v) {
+        $map = ['0' => 'inactive', '1' => 'active', '2' => 'suspended', '3' => 'pending'];
+        return $map[$v] ?? 'unknown';
+    })
+    ->setFieldType('rating', function ($v) { return number_format((float)$v, 2, '.', ''); })
+    ->setFieldType('metadata', function ($v) {
+        $meta = json_decode($v, true);
+        $meta['processed_at'] = date('Y-m-d H:i:s');
+        return $meta;
+    })
+    ->setFieldType('viewer_count', function ($v) { return (int)$v; })
     ->setFieldAlias('views', 'view_count')
-    ->setFieldAlias('created_at', 'published_at');
+    ->setFieldAlias('created_at', 'published_at')
+    ->setFieldAlias('details.platform', 'platform')
+    ->setFieldAlias('viewer_count', 'audience');
 
-// 3. Select only specific fields for output
-$processor->setFields(['id', 'title', 'view_count', 'category', 'published_at', 'details.platform']);
+// 3. Select only specific fields for output (including nested/dot notation and aliases)
+$processor->setFields([
+    'id', 'title', 'view_count', 'category', 'published_at', 'platform', 'tags', 'status', 'rating', 'audience', 'metadata',
+]);
 
-// 4. Add a filter (e.g., only featured Gaming category)
-$processor->addFilter(function ($row) {
-    return (
-        $row['is_featured'] === 'Y' &&
-        $row['category'] === 'Gaming'
-    );
-}, '__group__');
+// 4. Add filters (AND/OR logic, edge cases)
+$processor->setFilters([
+    'is_featured' => ['type' => 'equals', 'value' => 'Y'],
+    'category' => ['type' => 'in', 'value' => ['Gaming', 'Technology']],
+]);
+$processor->setFilterLogic('AND');
 
 // 5. Sort and paginate
 $processor
-    ->addSortBy('views', 'desc')
+    ->addSortBy('view_count', 'desc')
     ->addSortBy('id', 'asc')
-    ->setLimit(10)
+    ->setLimit(3)
     ->setOffset(0);
 
-// 6. Group by category
-$grouped = $processor->groupBy('category');
-echo "\nGrouped by category:\n";
-print_r($grouped);
+// 6. Group by a nested field (dot notation)
+$groupedByPlatform = $processor->groupBy('platform');
+echo "\nGrouped by platform (dot notation):\n";
+print_r($groupedByPlatform);
 
 // 7. Output processed data as array
 echo "\nProcessed array:\n";
 print_r($processor->toArray());
 
 // 8. Output as JSON
-// echo $processor->toJson();
+echo "\nProcessed JSON:\n";
+echo $processor->toJson(JSON_PRETTY_PRINT) . "\n";
 
 // 9. Output as CSV
-// echo $processor->toCsv();
+echo "\nProcessed CSV:\n";
+echo $processor->toCsv() . "\n";
 
 // 10. Array utility examples
 
@@ -810,10 +991,10 @@ echo "Random: " . json_encode($processor->random()) . "\n";
 echo "Reverse: " . json_encode($processor->reverse()) . "\n";
 echo "Shuffle: " . json_encode($processor->shuffle()) . "\n";
 echo "Pluck titles: " . json_encode($processor->pluck('title')) . "\n";
-echo "Filter (view_count > 1000): " . json_encode($processor->filter(function($row) {
+echo "Filter (view_count > 1000): " . json_encode($processor->filter(function ($row) {
     return $row['view_count'] > 1000;
 })) . "\n";
-echo "Map (double view_count): " . json_encode($processor->map(function($row) {
+echo "Map (double view_count): " . json_encode($processor->map(function ($row) {
     $row['view_count'] = $row['view_count'] * 2;
     return $row;
 })) . "\n";
@@ -822,5 +1003,7 @@ echo "Avg view_count: " . $processor->avg('view_count') . "\n";
 echo "Min view_count: " . $processor->min('view_count') . "\n";
 echo "Max view_count: " . $processor->max('view_count') . "\n";
 
-echo "\nLog:\n";
+echo "\nLog of operations:\n";
 print_r($processor->getLog());
+
+// --- End of Comprehensive Example Usage ---
