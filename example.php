@@ -1,6 +1,162 @@
 <?php
 require_once 'ArrayDataProcessor.php';
 
+
+<?php
+require_once 'ArrayDataProcessor.php';
+
+// --- Example 1: setFields ---
+$data = array(
+    array('id' => 1, 'name' => 'Alice', 'age' => 30),
+    array('id' => 2, 'name' => 'Bob', 'age' => 25),
+);
+$processor = new ArrayDataProcessor($data);
+$processor->setFields(array('id', 'name'));
+echo "\n[setFields] Only id and name:\n";
+print_r($processor->toArray());
+
+// --- Example 2: setFieldType ---
+$processor = new ArrayDataProcessor($data);
+$processor->setFieldType('age', function($v){ return $v . ' years'; });
+$processor->setFields(array('id', 'age'));
+echo "\n[setFieldType] Age with suffix:\n";
+print_r($processor->toArray());
+
+// --- Example 3: setFieldAlias ---
+$processor = new ArrayDataProcessor($data);
+$processor->setFieldAlias('name', 'username');
+$processor->setFields(array('id', 'username'));
+echo "\n[setFieldAlias] Alias name as username:\n";
+print_r($processor->toArray());
+
+// --- Example 4: setFilters ---
+$processor = new ArrayDataProcessor($data);
+$processor->setFields(array('id', 'name', 'age'));
+$processor->setFilters(array('age' => array('type' => 'equals', 'value' => 25)));
+echo "\n[setFilters] Only age = 25:\n";
+print_r($processor->toArray());
+
+// --- Example 5: addSortBy ---
+$processor = new ArrayDataProcessor($data);
+$processor->setFields(array('id', 'name', 'age'));
+$processor->addSortBy('age', 'desc');
+echo "\n[addSortBy] Sorted by age desc:\n";
+print_r($processor->toArray());
+
+// --- Example 6: setLimit and setOffset ---
+$processor = new ArrayDataProcessor($data);
+$processor->setFields(array('id', 'name', 'age'));
+$processor->setLimit(1)->setOffset(1);
+echo "\n[setLimit/setOffset] Limit 1, Offset 1:\n";
+print_r($processor->toArray());
+
+// --- Example 7: groupBy ---
+$groupData = array(
+    array('id' => 1, 'type' => 'A'),
+    array('id' => 2, 'type' => 'B'),
+    array('id' => 3, 'type' => 'A'),
+);
+$processor = new ArrayDataProcessor($groupData);
+$processor->setFields(array('id', 'type'));
+$grouped = $processor->groupBy('type');
+echo "\n[groupBy] Grouped by type:\n";
+print_r($grouped);
+
+// --- Example 8: expandByNestedList ---
+$expandData = array(
+    array('id' => 1, 'items' => array(array('sku' => 'A'), array('sku' => 'B'))),
+    array('id' => 2, 'items' => array()),
+);
+$processor = new ArrayDataProcessor($expandData);
+$processor->expandByNestedList('items', array('item_sku' => 'sku'));
+$processor->setFields(array('id', 'item_sku'));
+echo "\n[expandByNestedList] Expanded items:\n";
+print_r($processor->toArray());
+
+// --- Example 9: pluck ---
+$processor = new ArrayDataProcessor($data);
+$processor->setFields(array('name'));
+echo "\n[pluck] Names only:\n";
+print_r($processor->pluck('name'));
+
+// --- Example 10: map ---
+$processor = new ArrayDataProcessor($data);
+$processor->setFields(array('id', 'age'));
+$mapped = $processor->map(function($row){ $row['age'] += 10; return $row; });
+echo "\n[map] Age +10:\n";
+print_r($mapped);
+
+// --- Example 11: filter ---
+$processor = new ArrayDataProcessor($data);
+$processor->setFields(array('id', 'age'));
+$filtered = $processor->filter(function($row){ return $row['age'] > 25; });
+echo "\n[filter] Age > 25:\n";
+print_r($filtered);
+
+// --- Example 12: sum, avg, min, max ---
+$processor = new ArrayDataProcessor($data);
+$processor->setFields(array('age'));
+echo "\n[sum] Age sum: ".$processor->sum('age')."\n";
+echo "[avg] Age avg: ".$processor->avg('age')."\n";
+echo "[min] Age min: ".$processor->min('age')."\n";
+echo "[max] Age max: ".$processor->max('age')."\n";
+
+// --- Example 13: toArray, toJson, toCsv, getCsvHeaders ---
+$processor = new ArrayDataProcessor($data);
+$processor->setFields(array('id', 'name'));
+echo "\n[toArray]:\n";
+print_r($processor->toArray());
+echo "[toJson]:\n";
+echo $processor->toJson(JSON_PRETTY_PRINT)."\n";
+echo "[toCsv]:\n";
+echo $processor->toCsv()."\n";
+echo "[getCsvHeaders]:\n";
+print_r($processor->getCsvHeaders());
+
+// --- Example 14: reset ---
+$processor = new ArrayDataProcessor($data);
+$processor->setFields(array('id', 'name'));
+$processor->reset();
+$processor->setFields(array('id', 'age'));
+echo "\n[reset] After reset, fields id and age:\n";
+print_r($processor->toArray());
+
+// --- Example 15: getLastError ---
+$processor = new ArrayDataProcessor($data);
+$processor->setFieldType('', 'int'); // Invalid
+if ($processor->getLastError()) {
+    echo "\n[getLastError]: ".$processor->getLastError()."\n";
+}
+
+// --- Example 16: selectKeys ---
+$selectData = array(
+    array('id' => 1, 'name' => 'Alpha', 'score' => 10, 'extra' => 'foo'),
+    array('id' => 2, 'name' => 'Beta', 'score' => 20, 'extra' => 'bar'),
+);
+$processor = new ArrayDataProcessor($selectData);
+$processor->setFields(array('id', 'name'));
+$processor->selectKeys(array('score', 'extra'));
+echo "\n[selectKeys] Add score and extra:\n";
+print_r($processor->toArray());
+
+// --- Example 17: setEnumMap ---
+$statusData = array(
+    array('id' => 1, 'status' => 'active'),
+    array('id' => 2, 'status' => 'pending'),
+);
+$processor = new ArrayDataProcessor($statusData);
+$processor->setEnumMap(array(
+    'status' => array(
+        'active' => 'Active',
+        'pending' => 'Pending',
+    )
+));
+$processor->setFieldType('status', 'enum');
+$processor->setFields(array('id', 'status'));
+echo "\n[setEnumMap] Enum mapping for status:\n";
+print_r($processor->toArray());
+
+
 // --- Example 1: Expanding by nested list (accents) ---
 $accentData = [
     [
