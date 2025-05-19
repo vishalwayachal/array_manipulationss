@@ -64,7 +64,7 @@ $data = [
         'title' => 'Chill Stream',
         'category' => 'Gaming',
         'is_featured' => 'Y',
-        'views' => '800',
+        'views' => '1200',
         'created_at' => '2025-05-10 10:30:00',
         'tags' => ['relax', 'music'],
         'status' => '0',
@@ -226,6 +226,7 @@ print_r($processor->toArray());
 
 // --- Example 6: Grouping by multiple fields (manual) ---
 $processor->reset();
+$processor->setFieldAlias('views', 'view_count'); // Re-apply alias after reset
 $processor->setFields(['id', 'title', 'category', 'view_count']);
 $grouped = [];
 foreach ($processor->toArray() as $row) {
