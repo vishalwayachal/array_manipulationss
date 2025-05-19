@@ -357,3 +357,64 @@ echo "\n[Example 14] Pluck utility for nested fields (info.score):\n";
 print_r($pluckProcessor->pluck('info.score'));
 // Result:
 // Array ( [0] => 10 [1] => 20 )
+
+// --- Example 15: Using selectKeys to add additional fields dynamically ---
+$selectData = [
+    ['id' => 1, 'name' => 'Alpha', 'score' => 10, 'extra' => 'foo'],
+    ['id' => 2, 'name' => 'Beta', 'score' => 20, 'extra' => 'bar'],
+];
+$selectProcessor = new ArrayDataProcessor($selectData);
+$selectProcessor->setFields(['id', 'name']);
+$selectProcessor->selectKeys(['score', 'extra']);
+echo "\n[Example 15] selectKeys to add fields dynamically:\n";
+print_r($selectProcessor->toArray());
+// Result:
+// Array
+// (
+//     [0] => Array ( [id] => 1 [name] => Alpha [score] => 10 [extra] => foo )
+//     [1] => Array ( [id] => 2 [name] => Beta [score] => 20 [extra] => bar )
+// )
+
+// --- Example 16: Using getLastError for error handling ---
+$errorProcessor = new ArrayDataProcessor($selectData);
+$errorProcessor->setFieldType('', 'int'); // Invalid field name
+if ($errorProcessor->getLastError()) {
+    echo "\n[Example 16] Error handling with getLastError:\n";
+    echo $errorProcessor->getLastError() . "\n";
+}
+// Result:
+// [Example 16] Error handling with getLastError:
+// Invalid field name for setFieldType.
+
+// --- Example 17: Using reset to clear configuration but keep data ---
+$resetProcessor = new ArrayDataProcessor($selectData);
+$resetProcessor->setFields(['id', 'name']);
+$resetProcessor->reset();
+$resetProcessor->setFields(['id', 'score']);
+echo "\n[Example 17] Reset processor and set new fields:\n";
+print_r($resetProcessor->toArray());
+// Result:
+// Array
+// (
+//     [0] => Array ( [id] => 1 [score] => 10 )
+//     [1] => Array ( [id] => 2 [score] => 20 )
+// )
+
+// --- Example 18: Using toJson with custom flags (unescaped slashes) ---
+$jsonData = [
+    ['id' => 1, 'url' => 'https://example.com/foo/bar'],
+    ['id' => 2, 'url' => 'https://example.com/baz']
+];
+$jsonProcessor = new ArrayDataProcessor($jsonData);
+$jsonProcessor->setFields(['id', 'url']);
+echo "\n[Example 18] toJson with JSON_UNESCAPED_SLASHES:\n";
+echo $jsonProcessor->toJson(JSON_UNESCAPED_SLASHES) . "\n";
+// Result:
+// [{"id":1,"url":"https://example.com/foo/bar"},{"id":2,"url":"https://example.com/baz"}]
+
+// --- Example 19: Using toCsv with empty data ---
+$emptyProcessor = new ArrayDataProcessor([]);
+echo "\n[Example 19] toCsv with empty data:\n";
+echo $emptyProcessor->toCsv() . "\n";
+// Result:
+// (empty string)
